@@ -1,0 +1,3 @@
+Aplikacja inżyierska: 
+Baza danych: 
+https://dbdiagram.io/d/apka-inzynierska-6857fe0af039ec6d365286bd?fbclid=IwY2xjawNjhJZleHRuA2FlbQIxMABicmlkETA2VXFrOUQyN1V2c2J1RFBJAR6zGudNdzrQGS92rSXPxa91gitm57JvVsPyECEKdole2PFRDp0CcyO6_alIxQ_aem_BlqQ5nzZWARPzttU79AfnA
