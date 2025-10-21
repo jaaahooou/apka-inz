@@ -24,41 +24,42 @@ function App() {
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <BrowserRouter>
-      <Routes>
-  <Route path="/login" element={<Login />} />
-  <Route
-    path="/dashboard"
-    element={
-      <DashboardLayout>
-        <Dashboard />
-      </DashboardLayout>
-    }
-  />
-  <Route
-    path="/home"
-    element={
-      <DashboardLayout>
-        <Home />
-      </DashboardLayout>
-    }
-  />
-  <Route
-    path="/reports"
-    element={
-      <DashboardLayout>
-        <Reports />
-      </DashboardLayout>
-    }
-  />
-  <Route
-    path="/settings"
-    element={
-      <DashboardLayout>
-        <Settings />
-      </DashboardLayout>
-    }
-  />
-</Routes>
+        <Routes>
+           <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardLayout>
+                <Dashboard />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <DashboardLayout>
+                <Home />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <DashboardLayout>
+                <Reports />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <DashboardLayout>
+                <Settings />
+              </DashboardLayout>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </ThemeProvider>
   );
