@@ -15,7 +15,10 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: { main: '#90caf9' },
-    background: { default: '#121212', paper: '#1d1d1d' },
+    background: { default: '#111111 ', paper: '#000000'},
+  },
+    typography: {
+    fontFamily: 'Montserrat, Arial, sans-serif',
   },
 });
 
