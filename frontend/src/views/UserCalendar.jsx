@@ -1,15 +1,14 @@
-
 import { Box, Typography } from '@mui/material';
 
-const Reports = () => (
+const UserCalendar = () => (
   <Box sx={{ p: 4 }}>
     <Typography variant="h4" gutterBottom>
-      Twoje sprawy
+      Kalendarz
     </Typography>
     <Typography>
-      Tu możesz wyświetlać twoje wszystkie sprawy.
+      Tutaj możesz przejrzeć daty spraw.
     </Typography>
   </Box>
 );
 
-export default Reports;
+export default UserCalendar;

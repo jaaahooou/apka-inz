@@ -41,7 +41,10 @@ const Sidebar = () => {
 
   const menuItems = [
     { text: 'Strona Główna', path: '/home' },
-    { text: 'Raporty', path: '/reports' },
+    { text: 'Twoje sprawy', path: '/reports' },
+    { text: 'Kalendarz', path: '/usercalendar' },
+    { text: 'Pisma', path: '/userdocs' },
+    { text: 'Twoje dane', path: '/userdata' },
     { text: 'Ustawienia', path: '/settings' },
   ];
 
