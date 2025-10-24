@@ -1,15 +1,14 @@
-
 import { Box, Typography } from '@mui/material';
 
-const Reports = () => (
+const UserData = () => (
   <Box sx={{ p: 4 }}>
     <Typography variant="h4" gutterBottom>
-      Twoje sprawy
+      Twoje dane
     </Typography>
     <Typography>
-      Tu możesz wyświetlać twoje wszystkie sprawy.
+      Tu możesz wyświetlać swoje dane.
     </Typography>
   </Box>
 );
 
-export default Reports;
+export default UserData;

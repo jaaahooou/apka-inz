@@ -11,6 +11,11 @@ import Home from './views/Home';
 import Reports from './views/Reports';
 import Settings from './views/Settings';
 import PrivateRoute from './components/PrivateRoute';  // import PrivateRoute
+import UserDocs from './views/UserDocs';
+import UserData from './views/UserData';
+import UserCalendar from './views/UserCalendar';
+import UserCases from './views/UserCases';
+import CalendarForUser from './components/CalendarForUser';
 
 const darkTheme = createTheme({
   palette: {
@@ -33,48 +38,93 @@ function App() {
           <Route path="/login" element={<Login />} />
 
           {/* Chronione trasy: opakowane w PrivateRoute */}
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               <PrivateRoute>
                 <DashboardLayout>
                   <Dashboard />
                 </DashboardLayout>
               </PrivateRoute>
-            } 
+            }
           />
 
-          <Route 
-            path="/home" 
+          <Route
+            path="/home"
             element={
               <PrivateRoute>
                 <DashboardLayout>
                   <Home />
                 </DashboardLayout>
               </PrivateRoute>
-            } 
+            }
           />
 
-          <Route 
-            path="/reports" 
+          <Route
+            path="/reports"
             element={
               <PrivateRoute>
                 <DashboardLayout>
                   <Reports />
                 </DashboardLayout>
               </PrivateRoute>
-            } 
+            }
           />
 
-          <Route 
-            path="/settings" 
+          <Route
+            path="/userdocs"
+            element={
+              <PrivateRoute>
+                <DashboardLayout>
+                  <UserDocs />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/userdata"
+            element={
+              <PrivateRoute>
+                <DashboardLayout>
+                  <UserData />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/usercalendar"
+            element={
+              <PrivateRoute>
+                <DashboardLayout>
+                  <UserCalendar />
+                  <CalendarForUser />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/usercases"
+            element={
+              <PrivateRoute>
+                <DashboardLayout>
+                  <UserCases />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
             element={
               <PrivateRoute>
                 <DashboardLayout>
                   <Settings />
                 </DashboardLayout>
               </PrivateRoute>
-            } 
+            }
           />
         </Routes>
       </BrowserRouter>

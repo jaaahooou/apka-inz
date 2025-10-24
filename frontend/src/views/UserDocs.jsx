@@ -1,15 +1,14 @@
-
 import { Box, Typography } from '@mui/material';
 
-const Reports = () => (
+const UserDocs = () => (
   <Box sx={{ p: 4 }}>
     <Typography variant="h4" gutterBottom>
-      Twoje sprawy
+      Pisma
     </Typography>
     <Typography>
-      Tu możesz wyświetlać twoje wszystkie sprawy.
+      Tu możesz wyświetlać twoje wszystkie pisma i orzeczenia.
     </Typography>
   </Box>
 );
 
-export default Reports;
+export default UserDocs;
