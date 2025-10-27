@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 class Role(models.Model):
     name = models.CharField(max_length=100)
@@ -6,19 +7,16 @@ class Role(models.Model):
     def __str__(self):
         return self.name
 
-class User(models.Model):
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
-    email = models.CharField(max_length=100, unique=True)
-    password = models.CharField(max_length=255)
+class User(AbstractUser):
+    # AbstractUser już ma: username, password, email, first_name, last_name
+    # Dodajesz tylko dodatkowe pola:
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     phone = models.CharField(max_length=50)
     status = models.CharField(max_length=100)
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    # created_at - możesz użyć date_joined z AbstractUser lub dodać własne
+    
     def __str__(self):
         return f'{self.first_name} {self.last_name}'
-
 class Case(models.Model):
     case_number = models.CharField(max_length=100, unique=True)
     title = models.CharField(max_length=200)
