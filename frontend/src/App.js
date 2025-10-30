@@ -16,6 +16,7 @@ import UserData from './views/UserData';
 import UserCalendar from './views/UserCalendar';
 import UserCases from './views/UserCases';
 import CalendarForUser from './components/CalendarForUser';
+import Register from './views/Register';
 
 const darkTheme = createTheme({
   palette: {
@@ -45,6 +46,15 @@ function App() {
                 <DashboardLayout>
                   <Dashboard />
                 </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/register"
+            element={
+              <PrivateRoute>
+                <Register />
               </PrivateRoute>
             }
           />

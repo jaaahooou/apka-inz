@@ -116,9 +116,18 @@ const Login = () => {
           fullWidth
           variant="text"
           color="secondary"
-          sx={{ mt: 1, mb: 2 }}
+          sx={{ mt: 2, mb: 2 }}
         >
           Zapomniałeś hasła?
+        </Button>
+        <Button
+          fullWidth
+          variant="text"
+          color="primary"
+          sx={{ mt: 0, mb: 2 }}
+          onClick={()=> navigate('/register')}
+        >
+          Nie masz konta?<br/> Zarejestruj się tutaj!
         </Button>
       </Paper>
     </Box>
