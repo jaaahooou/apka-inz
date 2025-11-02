@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Role
 from .models import User
+from .models import Case
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -50,3 +51,17 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                   'role', 'phone', 'status', 'created_at']
         read_only_fields = ['id', 'username', 'first_name', 'last_name', 
                            'status', 'created_at']
+        
+
+class CaseSerializer(serializers.ModelSerializer):
+    """
+    Serializer dla modelu Case
+    """
+    # Dodatkowe pole tylko do odczytu - pokazuje username twórcy
+    creator_username = serializers.CharField(source='creator.username', read_only=True)
+    
+    class Meta:
+        model = Case
+        fields = ['id', 'case_number', 'title', 'description', 'status', 
+                  'creator', 'creator_username', 'created_at']
+        read_only_fields = ['id', 'creator', 'created_at']
