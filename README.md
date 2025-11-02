@@ -1,6 +1,6 @@
-Aplikacja inżyierska: 
+# Aplikacja inżynierska: 
 Baza danych: 
-https://dbdiagram.io/d/apka-inzynierska-6857fe0af039ec6d365286bd?fbclid=IwY2xjawNjhJZleHRuA2FlbQIxMABicmlkETA2VXFrOUQyN1V2c2J1RFBJAR6zGudNdzrQGS92rSXPxa91gitm57JvVsPyECEKdole2PFRDp0CcyO6_alIxQ_aem_BlqQ5nzZWARPzttU79AfnA
+https://dbdiagram.io/d/apka-inzynierska-6857fe0af039ec6d365286bd
 
 # Backend API - Dokumentacja
 
@@ -11,6 +11,8 @@ Backend aplikacji oparty na Django REST Framework z autentykacją JWT.
 - [Instalacja i konfiguracja](#instalacja-i-konfiguracja)
 - [Autentykacja JWT](#autentykacja-jwt)
 - [Endpointy API](#endpointy-api)
+  - [Użytkownicy](#użytkownicy)
+  - [Sprawy (Cases)](#sprawy-cases)
 - [Testowanie w Postman](#testowanie-w-postman)
 - [Konfiguracja deweloperska](#konfiguracja-deweloperska)
 - [Troubleshooting](#troubleshooting)
@@ -42,7 +44,9 @@ Serwer: `http://localhost:8000`
 **POST** `/api/token/`
 
 Headers: 
-Content-type: aplication/json - zawsze i wszędzie!!!!!!!!!!!
+Content-type: application/json - zawsze i wszędzie!!!!!!!!!!!
+
+text
 
 Body:
 {
@@ -50,7 +54,7 @@ Body:
 "password": "haslo123"
 }
 
-
+text
 
 Odpowiedź:
 {
@@ -58,7 +62,7 @@ Odpowiedź:
 "refresh": "refresh_token_tutaj..."
 }
 
-
+text
 
 - access token: ważny 90 dni
 - refresh token: ważny 180 dni
@@ -143,6 +147,121 @@ Wymaga: Bearer Token
 
 Wymaga: Bearer Token
 
+---
+
+### Sprawy (Cases)
+
+#### 1. Lista spraw
+**GET** `/court/cases/`
+
+Wymaga: Bearer Token
+
+Zwraca listę wszystkich spraw posortowanych od najnowszych.
+
+Odpowiedź:
+[
+{
+"id": 1,
+"case_number": "CASE-2025-001",
+"title": "Sprawa testowa",
+"description": "Opis sprawy",
+"status": "nowa",
+"creator": 1,
+"creator_username": "admin",
+"created_at": "2025-11-02T20:28:15.123456Z"
+}
+]
+
+text
+
+#### 2. Szczegóły sprawy
+**GET** `/court/cases/{id}/`
+
+Wymaga: Bearer Token
+
+Zwraca szczegóły pojedynczej sprawy.
+
+#### 3. Tworzenie sprawy
+**POST** `/court/cases/`
+
+Wymaga: Bearer Token
+
+Body:
+{
+"case_number": "CASE-2025-001",
+"title": "Nazwa sprawy",
+"description": "Szczegółowy opis sprawy",
+"status": "nowa"
+}
+
+text
+
+Pola wymagane:
+- case_number (unikalna)
+- title
+- description
+- status
+
+Pole `creator` jest automatycznie ustawiane na podstawie zalogowanego użytkownika.
+
+Odpowiedź (201 Created):
+{
+"id": 1,
+"case_number": "CASE-2025-001",
+"title": "Nazwa sprawy",
+"description": "Szczegółowy opis sprawy",
+"status": "nowa",
+"creator": 1,
+"creator_username": "admin",
+"created_at": "2025-11-02T20:28:15.123456Z"
+}
+
+text
+
+#### 4. Aktualizacja sprawy (częściowa)
+**PATCH** `/court/cases/{id}/update/`
+
+Wymaga: Bearer Token
+
+Edytowalne pola: case_number, title, description, status
+
+Body (przykład):
+{
+"status": "w trakcie",
+"description": "Zaktualizowany opis"
+}
+
+text
+
+#### 5. Aktualizacja sprawy (pełna)
+**PUT** `/court/cases/{id}/update/`
+
+Wymaga: Bearer Token
+
+Body:
+{
+"case_number": "CASE-2025-001",
+"title": "Zaktualizowana nazwa",
+"description": "Zaktualizowany opis",
+"status": "zakończona"
+}
+
+text
+
+#### 6. Usunięcie sprawy
+**DELETE** `/court/cases/{id}/delete/`
+
+Wymaga: Bearer Token
+
+Odpowiedź (204 No Content):
+{
+"message": "Case został pomyślnie usunięty"
+}
+
+text
+
+---
+
 ## Testowanie w Postman
 
 ### Krok 1: Uzyskaj token
@@ -157,11 +276,20 @@ Wymaga: Bearer Token
 3. Wklej access token
 
 ### Krok 3: Testuj endpointy
+
+**Użytkownicy:**
 - GET `/court/users/` - lista
 - POST `/court/users/` - nowy user
 - GET `/court/users/1/` - szczegóły
 - PATCH `/court/users/1/update/` - edycja
 - DELETE `/court/users/1/delete/` - usunięcie
+
+**Sprawy:**
+- GET `/court/cases/` - lista spraw
+- POST `/court/cases/` - nowa sprawa
+- GET `/court/cases/1/` - szczegóły sprawy
+- PATCH `/court/cases/1/update/` - edycja sprawy
+- DELETE `/court/cases/1/delete/` - usunięcie sprawy
 
 ## Konfiguracja deweloperska
 
@@ -176,16 +304,20 @@ text
 del db.sqlite3 # Windows
 rm db.sqlite3 # Linux/Mac
 
-3. Usuń pliki migracji (zostaw init.py w folderach migrations/)
+text
+3. Usuń pliki migracji (zostaw __init__.py w folderach migrations/)
 4. Stwórz migracje
 python manage.py makemigrations
 
+text
 5. Zastosuj migracje
 python manage.py migrate
 
+text
 6. Stwórz superusera
 python manage.py createsuperuser
 
+text
 
 ## Troubleshooting
 
@@ -194,6 +326,14 @@ python manage.py createsuperuser
 - Upewnij się że format to: `Bearer {token}`
 - Sprawdź czy token jest w headerze Authorization
 
+### Błąd 404 Not Found
+- Sprawdź poprawność URL
+- Upewnij się że zasób o podanym ID istnieje
+
+### Błąd 400 Bad Request
+- Sprawdź czy wszystkie wymagane pola są wypełnione
+- Upewnij się że format danych jest poprawny (JSON)
+- Sprawdź czy case_number jest unikalny
 
 ## Kody odpowiedzi HTTP
 
@@ -207,8 +347,9 @@ python manage.py createsuperuser
 | 404 | Not Found |
 | 500 | Server Error |
 
-## Model User
+## Modele
 
+### User
 class User(AbstractUser):
 role = ForeignKey(Role)
 phone = CharField(max_length=50)
@@ -224,4 +365,23 @@ Pola z AbstractUser:
 - last_name
 - is_active
 - is_staff
-- date_joined
+- date_joined 
+
+### Case
+class Case(models.Model):
+case_number = CharField(max_length=100, unique=True)
+title = CharField(max_length=200)
+description = TextField()
+status = CharField(max_length=100)
+creator = ForeignKey(User, on_delete=SET_NULL, null=True)
+created_at = DateTimeField(auto_now_add=True)
+
+text
+
+Pola:
+- case_number (wymagane, unikalne)
+- title (wymagane)
+- description (wymagane)
+- status (wymagane)
+- creator (automatycznie ustawiane, nullable)
+- created_at (automatycznie ustawiane)
