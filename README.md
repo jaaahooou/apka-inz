@@ -51,7 +51,7 @@ Serwer: `http://localhost:8000`
 **POST** `/api/token/`
 
 Headers: 
-Content-type: application/json
+Content-type: application/json - zawsze i wszędzie!!!!!!!!!!!
 
 text
 
@@ -102,6 +102,22 @@ text
 Wymaga: Bearer Token
 
 Zwraca listę wszystkich dostępnych ról w systemie.
+
+Odpowiedź:
+[
+{
+"id": 1,
+"name": "Sędzia",
+"description": "Osoba orzekająca w sprawie"
+},
+{
+"id": 2,
+"name": "Strona oskarżająca",
+"description": "Prokuratura lub powód w sprawie cywilnej"
+}
+]
+
+text
 
 #### 2. Tworzenie nowej roli
 **POST** `/court/roles/`
@@ -348,7 +364,7 @@ text
 
 ### Dziennik Audytu (Audit Logs)
 
-Dziennik audytu rejestruje wszystkie akcje w systemie (CREATE, UPDATE, DELETE) dla celów bezpieczeństwa i kontroli. **Wymaga uprawnień administratora** (is_staff=True). Automatycznie rejestruje zmiany poprzez middleware.
+Dziennik audytu rejestruje wszystkie akcje w systemie (CREATE, UPDATE, DELETE) dla celów bezpieczeństwa i kontroli. **Wymaga uprawnień administratora** (is_staff=True).
 
 #### 1. Lista wszystkich wpisów audytu
 **GET** `/court/audit-logs/`
@@ -403,6 +419,8 @@ GET /court/audit-logs/object/Case/1/
 
 text
 
+Pokazuje wszystkie akcje na sprawie #1 (CREATE, UPDATE, DELETE).
+
 #### 3. Historia użytkownika
 **GET** `/court/audit-logs/user/{user_id}/`
 
@@ -410,12 +428,45 @@ Wymaga: Bearer Token + Administrator (lub własne dane)
 
 Zwraca wszystkie akcje dokonane przez konkretnego użytkownika.
 
+Przykład:
+GET /court/audit-logs/user/2/
+
+text
+
 #### 4. Statystyki audytu
 **GET** `/court/audit-logs/statistics/`
 
 Wymaga: Bearer Token + Administrator
 
-Zwraca podsumowanie audytu - liczbę akcji, obiekty, użytkowników.
+Zwraca podsumowanie audytu:
+- Całkowita liczba wpisów
+- Liczba akcji według typu
+- Liczba akcji według obiektu
+- Liczba akcji według użytkownika
+
+Odpowiedź:
+{
+"total_logs": 150,
+"by_action": {
+"CREATE": 30,
+"UPDATE": 100,
+"DELETE": 10,
+"VIEW": 10
+},
+"by_object_type": {
+"Case": 50,
+"Hearing": 60,
+"Document": 30,
+"User": 10
+},
+"by_user": {
+"admin": 80,
+"jan_kowalski": 50,
+"maria_nowak": 20
+}
+}
+
+text
 
 #### Dostępne akcje
 - `CREATE` - Utworzenie
@@ -445,7 +496,8 @@ POST /api/token/
 text
 
 ### Krok 2: Użyj tokenu
-W każdym requeście: Authorization → Bearer Token → wklej access token
+W każdym requeście:
+- Authorization → Bearer Token → wklej access token
 
 ### Krok 3: Testuj endpointy
 
@@ -542,6 +594,7 @@ text
 
 ### Błąd 403 Forbidden (Audit Logs)
 - Upewnij się że jesteś administratorem (is_staff=True)
+- Polecenie: `python manage.py shell` → `from django.contrib.auth.models import User` → `user = User.objects.get(username='admin')` → `user.is_staff = True` → `user.save()`
 
 ### Błąd 404 Not Found
 - Sprawdź poprawność URL
@@ -552,6 +605,7 @@ text
 - Upewnij się że format danych jest poprawny (JSON)
 - Sprawdź czy case_number jest unikalny
 - Dla dokumentów upewnij się że używasz `form-data`
+- Dla rozpraw sprawdź czy status jest prawidłowy
 - Data i godzina rozprawy musi być w formacie ISO 8601
 
 ### Błąd podczas uploadu dokumentu
@@ -574,31 +628,53 @@ text
 
 ## Modele
 
-### Role
-- name (CharField, unique)
-- description (TextField, opcjonalne)
+### AuditLog
+class AuditLog(models.Model):
+ACTION_CHOICES = [
+('CREATE', 'Utworzenie'),
+('UPDATE', 'Aktualizacja'),
+('DELETE', 'Usunięcie'),
+('VIEW', 'Przeglądanie'),
+('DOWNLOAD', 'Pobranie'),
+('LOGIN', 'Logowanie'),
+('LOGOUT', 'Wylogowanie'),
+]
 
-### User
-- role (ForeignKey do Role)
-- phone (CharField)
-- status (CharField)
-- Plus pola z AbstractUser: username, password, email, first_name, last_name
+text
+OBJECT_TYPE_CHOICES = [
+    ('Case', 'Sprawa'),
+    ('Hearing', 'Rozprawa'),
+    ('Document', 'Dokument'),
+    ('User', 'Użytkownik'),
+    ('Role', 'Rola'),
+    ('CaseParticipant', 'Uczestnik sprawy'),
+    ('Notification', 'Powiadomienie'),
+]
 
-### Case
-class Case(models.Model):
-case_number = CharField(max_length=100, unique=True)
-title = CharField(max_length=200)
-description = TextField()
-status = CharField(max_length=100)
-creator = ForeignKey(User, on_delete=SET_NULL, null=True)
-created_at = DateTimeField(auto_now_add=True)
-
+user = ForeignKey(User, on_delete=SET_NULL, null=True, related_name='audit_logs')
+action = CharField(max_length=50, choices=ACTION_CHOICES)
+object_type = CharField(max_length=100, choices=OBJECT_TYPE_CHOICES)
+object_id = IntegerField(null=True, blank=True)
+object_name = CharField(max_length=200, blank=True, null=True)
+description = TextField(blank=True, null=True)
+old_value = TextField(blank=True, null=True)
+new_value = TextField(blank=True, null=True)
+ip_address = GenericIPAddressField(blank=True, null=True)
+user_agent = TextField(blank=True, null=True)
+timestamp = DateTimeField(auto_now_add=True, db_index=True)
 text
 
 Pola:
-- case_number (wymagane, unikalne)
-- title (wymagane)
-- description (wymagane)
-- status (wymagane)
-- creator (automatycznie ustawiane, nullable)
-- created_at (automatycznie ustawiane)
+- user - kto wykonał akcję
+- action - typ akcji (CREATE, UPDATE, DELETE)
+- object_type - typ zmieniającego się obiektu
+- object_id - ID obiektu
+- object_name - nazwa obiektu
+- description - szczegółowy opis akcji
+- old_value - stara wartość (JSON)
+- new_value - nowa wartość (JSON)
+- ip_address - adres IP użytkownika
+- user_agent - informacja o przeglądarce
+- timestamp - kiedy akcja się odbyła
+Zaktualizowany README zawiera kompletną dokumentację dla AuditLog z instrukcjami testowania i filtrowaniem.​
+
