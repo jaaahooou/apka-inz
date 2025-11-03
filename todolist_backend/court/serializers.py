@@ -4,6 +4,8 @@ from .models import User
 from .models import Case
 from .models import Document
 from .models import Hearing
+from .models import Notification
+from .models import CaseParticipant
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -95,3 +97,35 @@ class HearingSerializer(serializers.ModelSerializer):
         fields = ['id', 'case', 'case_number', 'date_time', 'location', 'status', 
                   'status_display', 'judge', 'judge_username', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
+        
+class NotificationSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    sender_username = serializers.CharField(source='sender.username', read_only=True, required=False)
+    case_number = serializers.CharField(source='case.case_number', read_only=True, required=False)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'user', 'user_username', 'title', 'message', 
+            'notification_type', 'is_read', 'read_at', 'case', 'case_number',
+            'hearing', 'document', 'sender', 'sender_username', 'sent_at'
+        ]
+        read_only_fields = ['id', 'sent_at', 'read_at']
+        
+class CaseParticipantSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_full_name = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source='get_role_in_case_display', read_only=True)
+    case_number = serializers.CharField(source='case.case_number', read_only=True)
+    
+    class Meta:
+        model = CaseParticipant
+        fields = [
+            'id', 'case', 'case_number', 'user', 'user_username', 'user_full_name',
+            'role_in_case', 'role_display', 'description', 'is_active',
+            'joined_at', 'left_at', 'contact_email', 'contact_phone'
+        ]
+        read_only_fields = ['id', 'joined_at']
+    
+    def get_user_full_name(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}"

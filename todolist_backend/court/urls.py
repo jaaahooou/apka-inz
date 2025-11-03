@@ -1,6 +1,6 @@
 from django.urls import path
 from .views.role_views import role_list_create, role_detail_crud
-from .views import user_views, case_views, document_views, hearing_views
+from .views import user_views, case_views, document_views, hearing_views, notification_views, CaseParticipant_views
 
 urlpatterns = [
  # Role endpoints
@@ -31,5 +31,17 @@ urlpatterns = [
     path('hearings/<int:pk>/', hearing_views.hearing_detail, name='hearing-detail'),
     path('hearings/<int:pk>/update/', hearing_views.hearing_update, name='hearing-update'),
     path('hearings/<int:pk>/delete/', hearing_views.hearing_delete, name='hearing-delete'),
+    
+      #Notificaton endpoints
+    path('notifications/', notification_views.notification_list, name='notification-list'),
+    path('notifications/unread-count/', notification_views.notification_unread_count, name='notification-unread-count'),
+    path('notifications/<int:pk>/read/', notification_views.mark_notification_as_read, name='mark-notification-read'),
+    path('notifications/read-all/', notification_views.mark_all_notifications_as_read, name='mark-all-notifications-read'),
+
+    path('cases/<int:case_id>/participants/', CaseParticipant_views.case_participants_list, name='case-participants-list'),
+    path('cases/<int:case_id>/participants/<int:participant_id>/', CaseParticipant_views.case_participant_detail, name='case-participant-detail'),
+    path('cases/<int:case_id>/participants/role/<str:role>/', CaseParticipant_views.case_participants_by_role, name='case-participants-by-role'),
+    path('cases/<int:case_id>/participants/<int:participant_id>/remove/', CaseParticipant_views.remove_participant_from_case, name='remove-participant'),
+    
 ]
 

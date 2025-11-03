@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -67,16 +68,76 @@ class Document(models.Model):
         super().save(*args, **kwargs)
 
 class Notification(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    NOTIFICATION_TYPE_CHOICES = [
+        ('hearing_reminder', 'Przypomnienie o rozprawie'),
+        ('document_added', 'Dodano dokument'),
+        ('status_changed', 'Zmieniono status sprawy'),
+        ('case_updated', 'Zaktualizowano sprawę'),
+        ('new_participant', 'Nowy uczestnik sprawy'),
+        ('message', 'Wiadomość'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=200, default='Powiadomienie')  # Krótki tytuł
     message = models.TextField()
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPE_CHOICES, default='message')
     is_read = models.BooleanField(default=False)
-    case = models.ForeignKey(Case, on_delete=models.SET_NULL, null=True)
+    case = models.ForeignKey(Case, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    hearing = models.ForeignKey(Hearing, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')  # Link do rozprawy
+    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')  # Link do dokumentu
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')  # Kto wysłał
     sent_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)  # Kiedy przeczytano
+    
+    class Meta:
+        ordering = ['-sent_at']  # Najnowsze powiadomienia na górze
+        indexes = [
+            models.Index(fields=['user', '-sent_at']),
+            models.Index(fields=['is_read']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"
+    
+    def mark_as_read(self):
+        """Oznacz powiadomienie jako przeczytane"""
+        
+        self.is_read = True
+        self.read_at = timezone.now()
+        self.save()
 
 class CaseParticipant(models.Model):
-    case = models.ForeignKey(Case, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    role_in_case = models.CharField(max_length=100)
+    PARTICIPANT_TYPE_CHOICES = [
+        ('plaintiff', 'Powód'),
+        ('defendant', 'Pozwany'),
+        ('prosecutor', 'Prokuratura'),
+        ('accused', 'Oskarżony'),
+        ('lawyer', 'Adwokat'),
+        ('representative', 'Pełnomocnik'),
+        ('witness', 'Świadek'),
+        ('other', 'Inne'),
+    ]
+    
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='participants')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='case_participations')
+    role_in_case = models.CharField(max_length=50, choices=PARTICIPANT_TYPE_CHOICES)
+    description = models.TextField(blank=True, null=True)  # Szczegółowy opis roli
+    is_active = models.BooleanField(default=True)  # Czy uczestnik jest aktywny
+    joined_at = models.DateTimeField(auto_now_add=True)  # Kiedy dołączył
+    left_at = models.DateTimeField(null=True, blank=True)  # Kiedy odszedł (jeśli dotyczy)
+    contact_email = models.EmailField(blank=True, null=True)  # Dodatkowy email do kontaktu
+    contact_phone = models.CharField(max_length=50, blank=True, null=True)  # Dodatkowy telefon
+    
+    class Meta:
+        unique_together = ('case', 'user')  # Każdy użytkownik może mieć tylko jedną rolę w sprawie
+        ordering = ['joined_at']
+        indexes = [
+            models.Index(fields=['case', 'role_in_case']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_in_case_display()} w sprawie {self.case.case_number}"
 
 class AuditLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
