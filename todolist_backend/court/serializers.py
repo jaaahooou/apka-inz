@@ -6,6 +6,7 @@ from .models import Document
 from .models import Hearing
 from .models import Notification
 from .models import CaseParticipant
+from .models import AuditLog
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -129,3 +130,18 @@ class CaseParticipantSerializer(serializers.ModelSerializer):
     
     def get_user_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
+    
+class AuditLogSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source='user.username', read_only=True, required=False)
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+    object_type_display = serializers.CharField(source='get_object_type_display', read_only=True)
+    
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_username', 'action', 'action_display',
+            'object_type', 'object_type_display', 'object_id', 'object_name',
+            'description', 'old_value', 'new_value', 'ip_address', 'user_agent',
+            'timestamp'
+        ]
+        read_only_fields = ['id', 'timestamp']

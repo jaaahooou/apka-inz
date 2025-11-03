@@ -140,9 +140,49 @@ class CaseParticipant(models.Model):
         return f"{self.user.username} - {self.get_role_in_case_display()} w sprawie {self.case.case_number}"
 
 class AuditLog(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    action = models.CharField(max_length=200)
-    object_type = models.CharField(max_length=100)
-    object_id = models.IntegerField(null=True)
-    ip_address = models.CharField(max_length=100)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    ACTION_CHOICES = [
+        ('CREATE', 'Utworzenie'),
+        ('UPDATE', 'Aktualizacja'),
+        ('DELETE', 'Usunięcie'),
+        ('VIEW', 'Przeglądanie'),
+        ('DOWNLOAD', 'Pobranie'),
+        ('LOGIN', 'Logowanie'),
+        ('LOGOUT', 'Wylogowanie'),
+    ]
+    
+    OBJECT_TYPE_CHOICES = [
+        ('Case', 'Sprawa'),
+        ('Hearing', 'Rozprawa'),
+        ('Document', 'Dokument'),
+        ('User', 'Użytkownik'),
+        ('Role', 'Rola'),
+        ('CaseParticipant', 'Uczestnik sprawy'),
+        ('Notification', 'Powiadomienie'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='audit_logs')
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    object_type = models.CharField(max_length=100, choices=OBJECT_TYPE_CHOICES)
+    object_id = models.IntegerField(null=True, blank=True)
+    object_name = models.CharField(max_length=200, blank=True, null=True)  # Nazwa obiektu dla łatwości
+    description = models.TextField(blank=True, null=True)  # Szczegółowy opis
+    old_value = models.TextField(blank=True, null=True)  # Stara wartość (dla UPDATE)
+    new_value = models.TextField(blank=True, null=True)  # Nowa wartość (dla UPDATE)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)  # Info o przeglądarce
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Dziennik audytu'
+        verbose_name_plural = 'Dzienniki audytu'
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['object_type', 'object_id']),
+            models.Index(fields=['action']),
+            models.Index(fields=['-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_action_display()} - {self.get_object_type_display()} #{self.object_id} - {self.user.username if self.user else 'Anonymous'}"
+
