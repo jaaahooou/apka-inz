@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.conf import settings
+from django.core.exceptions import ValidationError
+
 
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -187,32 +190,116 @@ class AuditLog(models.Model):
         return f"{self.get_action_display()} - {self.get_object_type_display()} #{self.object_id} - {self.user.username if self.user else 'Anonymous'}"
     
     
+   
+
 class ChatRoom(models.Model):
-    """Model pokoju czatu"""
-    name = models.CharField(max_length=255, unique=True)
+    """
+    Pokój czatu.
+    - Może reprezentować grupę lub rozmowę 1:1 (DM).
+    - Dla DM wymuszamy unikalność pary użytkowników niezależnie od kolejności.
+    """
+    name = models.CharField(max_length=255, blank=True, default='')
+    is_direct = models.BooleanField(default=False)
+
+    # Dla DM: dwóch uczestników (unordered pair; canonical order wymuszony w clean)
+    user_a = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name='dm_as_a'
+    )
+    user_b = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name='dm_as_b'
+    )
+
+    # Dla grup (opcjonalnie na przyszłość)
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='chat_rooms'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
-    
+        indexes = [
+            models.Index(fields=['is_direct', 'user_a', 'user_b']),
+        ]
+
+    def clean(self):
+        """
+        Wymuś porządek kanoniczny (user_a.id < user_b.id) oraz spójność pól dla DM vs. grup.
+        """
+        if self.is_direct:
+            if not self.user_a or not self.user_b:
+                raise ValidationError('DM wymaga pól user_a i user_b.')
+            if self.user_a_id == self.user_b_id:
+                raise ValidationError('Nie można utworzyć DM z samym sobą.')
+            # Uporządkowanie deterministyczne pary
+            if self.user_a_id and self.user_b_id and self.user_a_id > self.user_b_id:
+                self.user_a, self.user_b = self.user_b, self.user_a
+        else:
+            # Dla pokojów grupowych pola user_a/user_b nie powinny być ustawione
+            if self.user_a or self.user_b:
+                raise ValidationError('Pola user_a/user_b są dozwolone tylko dla is_direct=True.')
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        if self.is_direct and self.user_a and self.user_b:
+            return f"DM:{self.user_a_id}-{self.user_b_id}"
+        return self.name or f"Room {self.pk}"
 
 
 class Message(models.Model):
-    """Model wiadomości"""
+    """
+    Wiadomość.
+    """
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages'
+    )
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
-    
+
     class Meta:
         ordering = ['created_at']
         indexes = [
             models.Index(fields=['room', 'created_at']),
+            models.Index(fields=['sender', 'created_at']),
         ]
-    
+
     def __str__(self):
-        return f"{self.sender.username}: {self.content[:50]}"
+        return f"{getattr(self.sender, 'username', self.sender_id)}: {self.content[:50]}"
+
+
+class FavoriteContact(models.Model):
+    """
+    Biała lista kontaktów widocznych w lewym panelu dla danego użytkownika.
+    """
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_contacts'
+    )
+    contact = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorited_by'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('owner', 'contact')]
+        indexes = [
+            models.Index(fields=['owner', 'contact']),
+        ]
+
+    def __str__(self):
+        return f"{self.owner_id}->{self.contact_id}"
+
+
 
