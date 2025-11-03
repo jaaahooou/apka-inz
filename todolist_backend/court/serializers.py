@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Role
 from .models import User
 from .models import Case
+from .models import Document
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -65,3 +66,20 @@ class CaseSerializer(serializers.ModelSerializer):
         fields = ['id', 'case_number', 'title', 'description', 'status', 
                   'creator', 'creator_username', 'created_at']
         read_only_fields = ['id', 'creator', 'created_at']
+        
+        
+class DocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Document
+        fields = ['id', 'title', 'description', 'file', 'file_url', 'case', 
+                  'uploaded_by', 'uploaded_by_username', 'uploaded_at', 'file_size']
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_at', 'file_size']
+    
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None

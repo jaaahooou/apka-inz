@@ -35,12 +35,29 @@ class Hearing(models.Model):
     status = models.CharField(max_length=100)
     notes = models.TextField(blank=True)
 
+# class Document(models.Model):
+#     case = models.ForeignKey(Case, on_delete=models.CASCADE)
+#     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+#     file_name = models.CharField(max_length=200)
+#     file_path = models.CharField(max_length=255)
+#     uploaded_at = models.DateTimeField(auto_now_add=True)
+
 class Document(models.Model):
-    case = models.ForeignKey(Case, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    file_name = models.CharField(max_length=200)
-    file_path = models.CharField(max_length=255)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    file = models.FileField(upload_to='documents/%Y/%m/%d/')
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='documents')
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    file_size = models.IntegerField(blank=True, null=True)  # w bajtach
+    
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        if self.file:
+            self.file_size = self.file.size
+        super().save(*args, **kwargs)
 
 class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
