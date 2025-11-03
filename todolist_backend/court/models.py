@@ -2,7 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class Role(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -29,18 +30,24 @@ class Case(models.Model):
         return self.title
 
 class Hearing(models.Model):
-    case = models.ForeignKey(Case, on_delete=models.CASCADE)
-    date = models.DateTimeField()
+    # Definiuj dostępne statusy
+    STATUS_CHOICES = [
+        ('zaplanowana', 'Zaplanowana'),
+        ('odbyta', 'Odbyta'),
+        ('odłożona', 'Odłożona'),
+    ]
+    
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='hearings')
+    date_time = models.DateTimeField()
     location = models.CharField(max_length=200)
-    status = models.CharField(max_length=100)
-    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=100, choices=STATUS_CHOICES, default='zaplanowana')
+    judge = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.case.case_number} - {self.get_status_display()}"
 
-# class Document(models.Model):
-#     case = models.ForeignKey(Case, on_delete=models.CASCADE)
-#     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-#     file_name = models.CharField(max_length=200)
-#     file_path = models.CharField(max_length=255)
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 class Document(models.Model):
     title = models.CharField(max_length=200)

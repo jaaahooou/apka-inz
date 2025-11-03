@@ -3,11 +3,12 @@ from .models import Role
 from .models import User
 from .models import Case
 from .models import Document
+from .models import Hearing
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'description']
         
 
 
@@ -83,3 +84,14 @@ class DocumentSerializer(serializers.ModelSerializer):
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
+    
+class HearingSerializer(serializers.ModelSerializer):
+    judge_username = serializers.CharField(source='judge.username', read_only=True)
+    case_number = serializers.CharField(source='case.case_number', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = Hearing
+        fields = ['id', 'case', 'case_number', 'date_time', 'location', 'status', 
+                  'status_display', 'judge', 'judge_username', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']

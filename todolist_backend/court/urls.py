@@ -1,6 +1,6 @@
 from django.urls import path
 from .views.role_views import role_list_create, role_detail_crud
-from .views import user_views, case_views, document_views
+from .views import user_views, case_views, document_views, hearing_views
 
 urlpatterns = [
  # Role endpoints
@@ -25,5 +25,11 @@ urlpatterns = [
     path('documents/<int:pk>/download/', document_views.document_download, name='document-download'),
     path('documents/<int:pk>/delete/', document_views.document_delete, name='document-delete'),
     path('cases/<int:case_id>/documents/', document_views.case_documents, name='case-documents'),
+    
+      # Hearing endpoints
+    path('hearings/', hearing_views.hearing_list_create, name='hearing-list-create'),
+    path('hearings/<int:pk>/', hearing_views.hearing_detail, name='hearing-detail'),
+    path('hearings/<int:pk>/update/', hearing_views.hearing_update, name='hearing-update'),
+    path('hearings/<int:pk>/delete/', hearing_views.hearing_delete, name='hearing-delete'),
 ]
 
