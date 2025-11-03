@@ -1,3 +1,4 @@
+// src/components/HearingEditModal.jsx
 import React, { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
   CircularProgress,
   MenuItem,
   Autocomplete,
+  useTheme,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -20,6 +22,7 @@ import 'dayjs/locale/pl';
 import API from '../../api/axiosConfig';
 
 const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState({
     date_time: null,
     location: '',
@@ -59,8 +62,6 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
     try {
       setLoadingJudges(true);
       const response = await API.get('/court/users/');
-      // Filtruj tylko użytkowników z rolą sędziego (jeśli masz pole role)
-      // lub pobierz wszystkich i filtruj po stronie backendu
       setJudges(response.data);
     } catch (err) {
       console.error('Błąd podczas pobierania sędziów:', err);
@@ -91,60 +92,111 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
     }));
   };
 
- const handleSubmit = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(false);
 
-    if (!formData.date_time || !formData.location || !formData.status) {
-      setError('Data, godzina, sala i status są wymagane');
+      if (!formData.date_time || !formData.location || !formData.status) {
+        setError('Data, godzina, sala i status są wymagane');
+        setLoading(false);
+        return;
+      }
+
+      const dataToSend = {
+        date_time: formData.date_time.format('YYYY-MM-DDTHH:mm:ss'),
+        location: formData.location,
+        status: formData.status,
+        notes: formData.notes,
+        judge: formData.judge,
+      };
+
+      const response = await API.patch(`/court/hearings/${hearing.id}/update/`, dataToSend);
+
+      setSuccess(true);
+
+      setTimeout(() => {
+        onSuccess?.(response.data);
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        'Nie udało się zaktualizować rozprawy'
+      );
+      console.error(err);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const dataToSend = {
-      date_time: formData.date_time.format('YYYY-MM-DDTHH:mm:ss'),
-      location: formData.location,
-      status: formData.status,
-      notes: formData.notes,
-      judge: formData.judge,
-    };
-
-    // Wykonaj PATCH
-    const response = await API.patch(`/court/hearings/${hearing.id}/update/`, dataToSend);
-
-    setSuccess(true);
-    
-    // ✅ Odśwież dane i zamknij modal
-    setTimeout(() => {
-      onSuccess?.(response.data); // Przekaż zaktualizowane dane
-      onClose();
-    }, 1500);
-  } catch (err) {
-    setError(
-      err.response?.data?.detail ||
-      err.response?.data?.message ||
-      'Nie udało się zaktualizować rozprawy'
-    );
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   if (!hearing) return null;
 
-  // Znajdź aktualnie wybranego sędziego
   const selectedJudge = judges.find((judge) => judge.id === formData.judge) || null;
+
+  // Dynamiczny sx dla TextField
+  const textFieldSx = {
+    '& .MuiOutlinedInput-root': {
+      color: theme.palette.text.primary,
+      '& fieldset': {
+        borderColor: theme.palette.divider,
+      },
+      '&:hover fieldset': {
+        borderColor: theme.palette.primary.main,
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: theme.palette.primary.main,
+      },
+    },
+    '& .MuiInputLabel-root': {
+      color: theme.palette.text.secondary,
+    },
+    '& .MuiInputLabel-root.Mui-focused': {
+      color: theme.palette.primary.main,
+    },
+    '& .MuiSvgIcon-root': {
+      color: theme.palette.text.secondary,
+    },
+    '& .MuiInputBase-input::placeholder': {
+      color: theme.palette.text.secondary,
+      opacity: 0.7,
+    },
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="pl">
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: '#fff', fontWeight: 'bold' }}>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            fontWeight: 'bold',
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }}
+        >
           ✏️ Edytuj rozprawę
         </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1a1a1a', color: '#fff', pt: 3 }}>
+
+        <DialogContent
+          sx={{
+            bgcolor: theme.palette.background.default,
+            color: theme.palette.text.primary,
+            pt: 3,
+          }}
+        >
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
@@ -169,15 +221,7 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
               textField: {
                 fullWidth: true,
                 margin: 'normal',
-                sx: {
-                  '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': { borderColor: '#404040' },
-                    '&:hover fieldset': { borderColor: '#1976d2' },
-                  },
-                  '& .MuiInputLabel-root': { color: '#b0b0b0' },
-                  '& .MuiSvgIcon-root': { color: '#b0b0b0' },
-                },
+                sx: textFieldSx,
               },
             }}
           />
@@ -192,18 +236,7 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
             disabled={loading}
             margin="normal"
             placeholder="np. Sala 5"
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#404040' },
-                '&:hover fieldset': { borderColor: '#1976d2' },
-              },
-              '& .MuiInputLabel-root': { color: '#b0b0b0' },
-              '& .MuiInputBase-input::placeholder': {
-                color: '#b0b0b0',
-                opacity: 1,
-              },
-            }}
+            sx={textFieldSx}
           />
 
           {/* Status */}
@@ -216,14 +249,7 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
             onChange={handleChange}
             disabled={loading}
             margin="normal"
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#404040' },
-                '&:hover fieldset': { borderColor: '#1976d2' },
-              },
-              '& .MuiInputLabel-root': { color: '#b0b0b0' },
-            }}
+            sx={textFieldSx}
           >
             <MenuItem value="zaplanowana">📋 Zaplanowana</MenuItem>
             <MenuItem value="odbyta">✅ Odbyta</MenuItem>
@@ -234,7 +260,7 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
           <Autocomplete
             fullWidth
             options={judges}
-            getOptionLabel={(option) => 
+            getOptionLabel={(option) =>
               `${option.first_name} ${option.last_name} (${option.email})`
             }
             value={selectedJudge}
@@ -246,20 +272,18 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
                 {...params}
                 label="Sędzia prowadzący"
                 margin="normal"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': { borderColor: '#404040' },
-                    '&:hover fieldset': { borderColor: '#1976d2' },
-                  },
-                  '& .MuiInputLabel-root': { color: '#b0b0b0' },
-                  '& .MuiSvgIcon-root': { color: '#b0b0b0' },
-                }}
+                sx={textFieldSx}
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
                     <>
-                      {loadingJudges ? <CircularProgress color="inherit" size={20} /> : null}
+                      {loadingJudges ? (
+                        <CircularProgress
+                          color="inherit"
+                          size={20}
+                          sx={{ mr: 1 }}
+                        />
+                      ) : null}
                       {params.InputProps.endAdornment}
                     </>
                   ),
@@ -267,9 +291,36 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
               />
             )}
             sx={{
-              '& .MuiAutocomplete-popupIndicator': { color: '#b0b0b0' },
-              '& .MuiAutocomplete-clearIndicator': { color: '#b0b0b0' },
+              '& .MuiAutocomplete-popupIndicator': {
+                color: theme.palette.text.secondary,
+              },
+              '& .MuiAutocomplete-clearIndicator': {
+                color: theme.palette.text.secondary,
+              },
             }}
+            PopperComponent={(props) => (
+              <Box
+                {...props}
+                sx={{
+                  '& .MuiPaper-root': {
+                    backgroundColor: theme.palette.background.paper,
+                    color: theme.palette.text.primary,
+                  },
+                  '& .MuiAutocomplete-listbox': {
+                    backgroundColor: theme.palette.background.paper,
+                    '& .MuiAutocomplete-option': {
+                      backgroundColor: theme.palette.background.paper,
+                      '&[aria-selected="true"]': {
+                        backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.2)`,
+                      },
+                      '&:hover': {
+                        backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
+                      },
+                    },
+                  },
+                }}
+              />
+            )}
           />
 
           {/* Notatki */}
@@ -284,27 +335,26 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
             multiline
             rows={4}
             placeholder="Dodaj notatki dotyczące rozprawy..."
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#404040' },
-                '&:hover fieldset': { borderColor: '#1976d2' },
-              },
-              '& .MuiInputLabel-root': { color: '#b0b0b0' },
-              '& .MuiInputBase-input::placeholder': {
-                color: '#b0b0b0',
-                opacity: 1,
-              },
-            }}
+            sx={textFieldSx}
           />
         </DialogContent>
-        <DialogActions sx={{ bgcolor: '#2d2d2d', p: 2, gap: 1 }}>
+
+        <DialogActions
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            p: 2,
+            gap: 1,
+            borderTop: `1px solid ${theme.palette.divider}`,
+          }}
+        >
           <Button
             onClick={onClose}
             disabled={loading}
             sx={{
-              color: '#b0b0b0',
-              '&:hover': { bgcolor: '#363636' },
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                backgroundColor: `rgba(${theme.palette.mode === 'light' ? '0, 0, 0' : '255, 255, 255'}, 0.08)`,
+              },
             }}
           >
             Anuluj
@@ -314,9 +364,12 @@ const HearingEditModal = ({ open, hearing, onClose, onSuccess }) => {
             variant="contained"
             disabled={loading}
             sx={{
-              bgcolor: '#1976d2',
-              color: '#fff',
-              '&:hover': { bgcolor: '#1565c0' },
+              backgroundColor: theme.palette.primary.main,
+              color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
+              fontWeight: '500',
+              '&:hover': {
+                backgroundColor: theme.palette.primary.dark,
+              },
               minWidth: '100px',
             }}
           >

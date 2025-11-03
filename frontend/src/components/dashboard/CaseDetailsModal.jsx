@@ -1,3 +1,4 @@
+// src/components/CaseDetailsModal.jsx
 import React, { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -11,11 +12,13 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  useTheme,
 } from '@mui/material';
 import StatusChip from '../common/StatusChip';
 import API from '../../api/axiosConfig';
 
 const CaseDetailsModal = ({ open, caseData, onClose }) => {
+  const theme = useTheme();
   const [fullData, setFullData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -43,11 +46,36 @@ const CaseDetailsModal = ({ open, caseData, onClose }) => {
   if (!caseData) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ bgcolor: '#2d2d2d', color: '#fff', fontWeight: 'bold' }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+        },
+      }}
+    >
+      <DialogTitle 
+        sx={{ 
+          bgcolor: theme.palette.background.paper, 
+          color: theme.palette.text.primary, 
+          fontWeight: 'bold',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
         📋 Szczegóły sprawy
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: '#1a1a1a', color: '#fff', pt: 3 }}>
+      
+      <DialogContent 
+        sx={{ 
+          bgcolor: theme.palette.background.default, 
+          color: theme.palette.text.primary, 
+          pt: 3,
+        }}
+      >
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
             <CircularProgress />
@@ -58,106 +86,209 @@ const CaseDetailsModal = ({ open, caseData, onClose }) => {
           <>
             {/* NUMER SPRAWY */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                NUMER SPRAWY
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Numer sprawy
               </Typography>
-              <Typography variant="body2" sx={{ color: '#fff', mt: 0.5 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: theme.palette.text.primary, 
+                  mt: 0.5,
+                  fontWeight: '500',
+                }}
+              >
                 {fullData.case_number}
               </Typography>
             </Box>
 
-            <Divider sx={{ bgcolor: '#404040', my: 2 }} />
+            <Divider sx={{ borderColor: theme.palette.divider, my: 2 }} />
 
             {/* TYTUŁ */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                TYTUŁ
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Tytuł
               </Typography>
-              <Typography variant="body2" sx={{ color: '#fff', mt: 0.5 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: theme.palette.text.primary, 
+                  mt: 0.5,
+                  fontWeight: '500',
+                }}
+              >
                 {fullData.title}
               </Typography>
             </Box>
 
-            <Divider sx={{ bgcolor: '#404040', my: 2 }} />
+            <Divider sx={{ borderColor: theme.palette.divider, my: 2 }} />
 
             {/* OPIS */}
             {fullData.description && (
               <>
                 <Box sx={{ mb: 3 }}>
-                  <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                    OPIS
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: theme.palette.text.secondary, 
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Opis
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#fff', mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: theme.palette.text.primary, 
+                      mt: 0.5, 
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
                     {fullData.description}
                   </Typography>
                 </Box>
 
-                <Divider sx={{ bgcolor: '#404040', my: 2 }} />
+                <Divider sx={{ borderColor: theme.palette.divider, my: 2 }} />
               </>
             )}
 
             {/* STATUS */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                STATUS
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Status
               </Typography>
               <Box sx={{ mt: 0.5 }}>
                 <StatusChip status={fullData.status} />
               </Box>
             </Box>
 
-            <Divider sx={{ bgcolor: '#404040', my: 2 }} />
+            <Divider sx={{ borderColor: theme.palette.divider, my: 2 }} />
 
             {/* DATA UTWORZENIA */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                DATA UTWORZENIA
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Data utworzenia
               </Typography>
-              <Typography variant="body2" sx={{ color: '#fff', mt: 0.5 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: theme.palette.text.primary, 
+                  mt: 0.5,
+                  fontWeight: '500',
+                }}
+              >
                 {new Date(fullData.created_at).toLocaleDateString('pl-PL')}
               </Typography>
             </Box>
 
-            <Divider sx={{ bgcolor: '#404040', my: 2 }} />
+            <Divider sx={{ borderColor: theme.palette.divider, my: 2 }} />
 
             {/* LICZBA ROZPRAW */}
             <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                LICZBA ROZPRAW
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Liczba rozpraw
               </Typography>
               <Box sx={{ mt: 0.5 }}>
                 <Chip
                   label={fullData.hearings_count || 0}
                   size="small"
-                  sx={{ bgcolor: '#1976d2', color: '#fff' }}
+                  sx={{ 
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
+                    fontWeight: '500',
+                  }}
                 />
               </Box>
             </Box>
 
             {/* LICZBA UCZESTNIKÓW */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="caption" sx={{ color: '#b0b0b0', fontWeight: 'bold' }}>
-                LICZBA UCZESTNIKÓW
+            <Box sx={{ mb: 0 }}>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary, 
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Liczba uczestników
               </Typography>
               <Box sx={{ mt: 0.5 }}>
                 <Chip
                   label={fullData.participants_count || 0}
                   size="small"
-                  sx={{ bgcolor: '#388e3c', color: '#fff' }}
+                  sx={{ 
+                    backgroundColor: theme.palette.success?.main || '#4caf50',
+                    color: '#fff',
+                    fontWeight: '500',
+                  }}
                 />
               </Box>
             </Box>
           </>
         ) : null}
       </DialogContent>
-      <DialogActions sx={{ bgcolor: '#2d2d2d', p: 2 }}>
+
+      <DialogActions 
+        sx={{ 
+          bgcolor: theme.palette.background.paper, 
+          p: 2,
+          borderTop: `1px solid ${theme.palette.divider}`,
+        }}
+      >
         <Button
           onClick={onClose}
           variant="contained"
           sx={{
-            bgcolor: '#1976d2',
-            color: '#fff',
-            '&:hover': { bgcolor: '#1565c0' },
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
+            fontWeight: '500',
+            '&:hover': { 
+              backgroundColor: theme.palette.primary.dark,
+              opacity: 0.9,
+            },
           }}
         >
           Zamknij

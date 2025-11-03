@@ -7,6 +7,7 @@ from .models import Hearing
 from .models import Notification
 from .models import CaseParticipant
 from .models import AuditLog
+from .models import Message, ChatRoom
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -145,3 +146,21 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'timestamp'
         ]
         read_only_fields = ['id', 'timestamp']
+        
+
+#Chatroom serializer
+class MessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    
+    class Meta:
+        model = Message
+        fields = ['id', 'room', 'sender', 'sender_username', 'content', 'created_at', 'is_read']
+        read_only_fields = ['created_at', 'sender']
+
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    messages = MessageSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'name', 'created_at', 'messages']

@@ -185,4 +185,34 @@ class AuditLog(models.Model):
     
     def __str__(self):
         return f"{self.get_action_display()} - {self.get_object_type_display()} #{self.object_id} - {self.user.username if self.user else 'Anonymous'}"
+    
+    
+class ChatRoom(models.Model):
+    """Model pokoju czatu"""
+    name = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.name
+
+
+class Message(models.Model):
+    """Model wiadomości"""
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['room', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.sender.username}: {self.content[:50]}"
 

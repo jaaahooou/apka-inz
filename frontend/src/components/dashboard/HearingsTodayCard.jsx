@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// src/components/dashboard/HearingsTodayCard.jsx
+import React, { useState, useMemo } from 'react';
 import {
   Card,
   CardHeader,
@@ -14,28 +15,34 @@ import {
   Box,
   CircularProgress,
   Alert,
+  useTheme,
 } from '@mui/material';
 import { Edit as EditIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
 import StatusChip from '../common/StatusChip';
 import useHearings from '../../hooks/useHearings';
-import HearingDetailsModal from '../../modals/HearingDetailsModal';
+import HearingDetailsModal from './HearingDetailsModal';
 import HearingEditModal from './HearingEditModal';
 
-
 const HearingsTodayCard = () => {
-  const { data, loading, error, refetch, updateHearing } = useHearings(); // ✅ Dodaj updateHearing
+  const theme = useTheme();
+  const { data = [], loading, error, refetch } = useHearings();
   const [selectedHearing, setSelectedHearing] = useState(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
-  const getTodayHearings = () => {
+  // Memoized computation dla dzisiejszych rozpraw
+  const todayHearings = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    
     const today = new Date().toISOString().split('T')[0];
-    return data.filter((hearing) => 
-      hearing.date_time.startsWith(today)
-    );
-  };
-
-  const todayHearings = getTodayHearings();
+    return data.filter((hearing) => {
+      try {
+        return hearing.date_time && hearing.date_time.startsWith(today);
+      } catch {
+        return false;
+      }
+    });
+  }, [data]);
 
   const handleViewDetails = (hearing) => {
     setSelectedHearing(hearing);
@@ -57,82 +64,269 @@ const HearingsTodayCard = () => {
     setSelectedHearing(null);
   };
 
-  // ✅ Po udanej edycji - odśwież dane
   const handleEditSuccess = async () => {
-    await refetch(); // Pełny refresh lub updateHearing jeśli chcesz być bardziej elegancki
+    await refetch();
+    handleCloseEdit();
   };
 
+  // Loading state
   if (loading) {
     return (
-      <Card sx={{ mb: 3, backgroundColor: '#2d2d2d', color: '#fff', border: '1px solid #404040', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-        <CircularProgress />
+      <Card
+        sx={{
+          mb: 3,
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          border: `1px solid ${theme.palette.divider}`,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '200px',
+          transition: 'all 0.3s ease',
+        }}
+      >
+        <CircularProgress color="inherit" />
       </Card>
     );
   }
 
+  // Error state
   if (error) {
     return (
-      <Card sx={{ mb: 3, backgroundColor: '#2d2d2d', color: '#fff', border: '1px solid #404040', p: 2 }}>
-        <Alert severity="error">Błąd: {error}</Alert>
+      <Card
+        sx={{
+          mb: 3,
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          border: `1px solid ${theme.palette.divider}`,
+          p: 2,
+          transition: 'all 0.3s ease',
+        }}
+      >
+        <Alert severity="error" sx={{ mb: 0 }}>
+          Błąd: {error}
+        </Alert>
       </Card>
     );
   }
 
   return (
     <>
-      <Card sx={{ mb: 3, backgroundColor: '#2d2d2d', color: '#fff', border: '1px solid #404040' }}>
+      <Card
+        sx={{
+          mb: 3,
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          border: `1px solid ${theme.palette.divider}`,
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            boxShadow:
+              theme.palette.mode === 'light'
+                ? '0 4px 12px rgba(0, 0, 0, 0.1)'
+                : '0 4px 12px rgba(0, 0, 0, 0.3)',
+          },
+        }}
+      >
         <CardHeader
-          title="📅 Rozprawy dzisiaj"
-          subheader={`${todayHearings.length} rozpraw zaplanowanych`}
-          titleTypographyProps={{ variant: 'h6', sx: { color: '#fff' } }}
-          subheaderTypographyProps={{ sx: { color: '#b0b0b0' } }}
-        />
+  title="📅 Rozprawy dzisiaj"
+  subheader={`${todayHearings.length} rozpraw zaplanowanych`}
+  titleTypographyProps={{
+    variant: 'h6',
+    sx: {
+      color: theme.palette.text.primary,
+      fontWeight: '600',
+    },
+  }}
+  subheaderTypographyProps={{
+    sx: {
+      color: theme.palette.text.secondary,
+    },
+  }}
+  sx={{
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  }}
+/>
+        
         <TableContainer>
           <Table>
-            <TableHead sx={{ backgroundColor: '#1f1f1f' }}>
+            <TableHead
+              sx={{
+                backgroundColor:
+                  theme.palette.mode === 'light'
+                    ? 'rgba(0, 0, 0, 0.02)'
+                    : 'rgba(255, 255, 255, 0.02)',
+              }}
+            >
               <TableRow>
-                <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Godzina</TableCell>
-                <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Sprawa</TableCell>
-                <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Sędzia</TableCell>
-                <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Sala</TableCell>
-                <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Status</TableCell>
-                <TableCell align="right" sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Akcje</TableCell>
+                <TableCell
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Godzina
+                </TableCell>
+                <TableCell
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Sprawa
+                </TableCell>
+                <TableCell
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Sędzia
+                </TableCell>
+                <TableCell
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Sala
+                </TableCell>
+                <TableCell
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Status
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    borderColor: theme.palette.divider,
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Akcje
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {todayHearings.length > 0 ? (
                 todayHearings.map((hearing) => (
-                  <TableRow key={hearing.id} hover sx={{ '&:hover': { backgroundColor: '#363636' }, borderColor: '#404040' }}>
-                    <TableCell sx={{ color: '#fff', fontWeight: 'bold', borderColor: '#404040' }}>
-                      {new Date(hearing.date_time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                  <TableRow
+                    key={hearing.id}
+                    hover
+                    sx={{
+                      '&:hover': {
+                        backgroundColor:
+                          theme.palette.mode === 'light'
+                            ? 'rgba(0, 0, 0, 0.04)'
+                            : 'rgba(255, 255, 255, 0.08)',
+                      },
+                      borderColor: theme.palette.divider,
+                      transition: 'background-color 0.2s ease',
+                    }}
+                  >
+                    <TableCell
+                      sx={{
+                        color: theme.palette.text.primary,
+                        fontWeight: '600',
+                        borderColor: theme.palette.divider,
+                      }}
+                    >
+                      {hearing.date_time
+                        ? new Date(hearing.date_time).toLocaleTimeString('pl-PL', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'N/A'}
                     </TableCell>
-                    <TableCell sx={{ borderColor: '#404040' }}>
+                    <TableCell sx={{ borderColor: theme.palette.divider }}>
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#fff' }}>
-                          {hearing.case_number}
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: '600',
+                            color: theme.palette.text.primary,
+                          }}
+                        >
+                          {hearing.case_number || 'Brak numeru'}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#b0b0b0' }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            mt: 0.5,
+                            display: 'block',
+                          }}
+                        >
                           {hearing.notes || 'Brak notatek'}
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ color: '#fff', borderColor: '#404040' }}>
+                    <TableCell
+                      sx={{
+                        color: theme.palette.text.primary,
+                        borderColor: theme.palette.divider,
+                      }}
+                    >
                       {hearing.judge_username || 'Niezdefiniowany'}
                     </TableCell>
-                    <TableCell sx={{ color: '#fff', borderColor: '#404040' }}>
-                      {hearing.location}
+                    <TableCell
+                      sx={{
+                        color: theme.palette.text.primary,
+                        borderColor: theme.palette.divider,
+                      }}
+                    >
+                      {hearing.location || 'N/A'}
                     </TableCell>
-                    <TableCell sx={{ borderColor: '#404040' }}>
+                    <TableCell sx={{ borderColor: theme.palette.divider }}>
                       <StatusChip status={hearing.status} />
                     </TableCell>
-                    <TableCell align="right" sx={{ borderColor: '#404040' }}>
+                    <TableCell
+                      align="right"
+                      sx={{ borderColor: theme.palette.divider }}
+                    >
                       <Tooltip title="Szczegóły">
-                        <IconButton size="small" sx={{ color: '#b0b0b0' }} onClick={() => handleViewDetails(hearing)}>
+                        <IconButton
+                          size="small"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            '&:hover': {
+                              color: theme.palette.primary.main,
+                              backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
+                            },
+                            transition: 'all 0.2s ease',
+                          }}
+                          onClick={() => handleViewDetails(hearing)}
+                        >
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Edycja">
-                        <IconButton size="small" sx={{ color: '#b0b0b0' }} onClick={() => handleEditHearing(hearing)}>
+                        <IconButton
+                          size="small"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            '&:hover': {
+                              color: theme.palette.primary.main,
+                              backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
+                            },
+                            transition: 'all 0.2s ease',
+                          }}
+                          onClick={() => handleEditHearing(hearing)}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -141,7 +335,16 @@ const HearingsTodayCard = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} sx={{ textAlign: 'center', color: '#b0b0b0', p: 3 }}>
+                  <TableCell
+                    colSpan={6}
+                    sx={{
+                      textAlign: 'center',
+                      color: theme.palette.text.secondary,
+                      p: 3,
+                      borderColor: theme.palette.divider,
+                      fontStyle: 'italic',
+                    }}
+                  >
                     Brak rozpraw zaplanowanych na dzisiaj
                   </TableCell>
                 </TableRow>
@@ -151,18 +354,17 @@ const HearingsTodayCard = () => {
         </TableContainer>
       </Card>
 
-      <HearingDetailsModal 
-        open={detailsModalOpen} 
-        hearing={selectedHearing} 
-        onClose={handleCloseDetails} 
+      <HearingDetailsModal
+        open={detailsModalOpen}
+        hearing={selectedHearing}
+        onClose={handleCloseDetails}
       />
 
-      {/* ✅ Dodaj onSuccess callback */}
-      <HearingEditModal 
-        open={editModalOpen} 
-        hearing={selectedHearing} 
+      <HearingEditModal
+        open={editModalOpen}
+        hearing={selectedHearing}
         onClose={handleCloseEdit}
-        onSuccess={handleEditSuccess} 
+        onSuccess={handleEditSuccess}
       />
     </>
   );

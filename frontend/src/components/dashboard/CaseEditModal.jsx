@@ -1,3 +1,4 @@
+// src/components/CaseEditModal.jsx
 import React, { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -10,10 +11,12 @@ import {
   Alert,
   CircularProgress,
   MenuItem,
+  useTheme,
 } from '@mui/material';
 import API from '../../api/axiosConfig';
 
 const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState({
     case_number: '',
     title: '',
@@ -79,11 +82,36 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
   if (!caseData) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ bgcolor: '#2d2d2d', color: '#fff', fontWeight: 'bold' }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+        },
+      }}
+    >
+      <DialogTitle 
+        sx={{ 
+          bgcolor: theme.palette.background.paper, 
+          color: theme.palette.text.primary, 
+          fontWeight: 'bold',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
         ✏️ Edytuj sprawę
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: '#1a1a1a', color: '#fff', pt: 3 }}>
+
+      <DialogContent 
+        sx={{ 
+          bgcolor: theme.palette.background.default, 
+          color: theme.palette.text.primary, 
+          pt: 3,
+        }}
+      >
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -105,13 +133,26 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
           onChange={handleChange}
           disabled={loading}
           margin="normal"
+          variant="outlined"
           sx={{
             '& .MuiOutlinedInput-root': {
-              color: '#fff',
-              '& fieldset': { borderColor: '#404040' },
-              '&:hover fieldset': { borderColor: '#1976d2' },
+              color: theme.palette.text.primary,
+              '& fieldset': { 
+                borderColor: theme.palette.divider,
+              },
+              '&:hover fieldset': { 
+                borderColor: theme.palette.primary.main,
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: theme.palette.primary.main,
+              },
             },
-            '& .MuiInputLabel-root': { color: '#b0b0b0' },
+            '& .MuiInputLabel-root': { 
+              color: theme.palette.text.secondary,
+            },
+            '& .MuiInputLabel-root.Mui-focused': {
+              color: theme.palette.primary.main,
+            },
           }}
         />
 
@@ -124,13 +165,26 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
           onChange={handleChange}
           disabled={loading}
           margin="normal"
+          variant="outlined"
           sx={{
             '& .MuiOutlinedInput-root': {
-              color: '#fff',
-              '& fieldset': { borderColor: '#404040' },
-              '&:hover fieldset': { borderColor: '#1976d2' },
+              color: theme.palette.text.primary,
+              '& fieldset': { 
+                borderColor: theme.palette.divider,
+              },
+              '&:hover fieldset': { 
+                borderColor: theme.palette.primary.main,
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: theme.palette.primary.main,
+              },
             },
-            '& .MuiInputLabel-root': { color: '#b0b0b0' },
+            '& .MuiInputLabel-root': { 
+              color: theme.palette.text.secondary,
+            },
+            '& .MuiInputLabel-root.Mui-focused': {
+              color: theme.palette.primary.main,
+            },
           }}
         />
 
@@ -144,13 +198,29 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
           onChange={handleChange}
           disabled={loading}
           margin="normal"
+          variant="outlined"
           sx={{
             '& .MuiOutlinedInput-root': {
-              color: '#fff',
-              '& fieldset': { borderColor: '#404040' },
-              '&:hover fieldset': { borderColor: '#1976d2' },
+              color: theme.palette.text.primary,
+              '& fieldset': { 
+                borderColor: theme.palette.divider,
+              },
+              '&:hover fieldset': { 
+                borderColor: theme.palette.primary.main,
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: theme.palette.primary.main,
+              },
             },
-            '& .MuiInputLabel-root': { color: '#b0b0b0' },
+            '& .MuiInputLabel-root': { 
+              color: theme.palette.text.secondary,
+            },
+            '& .MuiInputLabel-root.Mui-focused': {
+              color: theme.palette.primary.main,
+            },
+            '& .MuiSvgIcon-root': {
+              color: theme.palette.text.secondary,
+            },
           }}
         >
           <MenuItem value="aktywna">Aktywna</MenuItem>
@@ -170,23 +240,46 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
           margin="normal"
           multiline
           rows={4}
+          variant="outlined"
           sx={{
             '& .MuiOutlinedInput-root': {
-              color: '#fff',
-              '& fieldset': { borderColor: '#404040' },
-              '&:hover fieldset': { borderColor: '#1976d2' },
+              color: theme.palette.text.primary,
+              '& fieldset': { 
+                borderColor: theme.palette.divider,
+              },
+              '&:hover fieldset': { 
+                borderColor: theme.palette.primary.main,
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: theme.palette.primary.main,
+              },
             },
-            '& .MuiInputLabel-root': { color: '#b0b0b0' },
+            '& .MuiInputLabel-root': { 
+              color: theme.palette.text.secondary,
+            },
+            '& .MuiInputLabel-root.Mui-focused': {
+              color: theme.palette.primary.main,
+            },
           }}
         />
       </DialogContent>
-      <DialogActions sx={{ bgcolor: '#2d2d2d', p: 2, gap: 1 }}>
+
+      <DialogActions 
+        sx={{ 
+          bgcolor: theme.palette.background.paper, 
+          p: 2, 
+          gap: 1,
+          borderTop: `1px solid ${theme.palette.divider}`,
+        }}
+      >
         <Button
           onClick={onClose}
           disabled={loading}
           sx={{
-            color: '#b0b0b0',
-            '&:hover': { bgcolor: '#363636' },
+            color: theme.palette.text.secondary,
+            '&:hover': { 
+              backgroundColor: `rgba(${theme.palette.mode === 'light' ? '0, 0, 0' : '255, 255, 255'}, 0.08)`,
+            },
           }}
         >
           Anuluj
@@ -196,9 +289,12 @@ const CaseEditModal = ({ open, caseData, onClose, onSuccess }) => {
           variant="contained"
           disabled={loading}
           sx={{
-            bgcolor: '#1976d2',
-            color: '#fff',
-            '&:hover': { bgcolor: '#1565c0' },
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
+            fontWeight: '500',
+            '&:hover': { 
+              backgroundColor: theme.palette.primary.dark,
+            },
             minWidth: '100px',
           }}
         >

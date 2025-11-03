@@ -1,3 +1,4 @@
+// src/views/Dashboard.jsx
 import React, { useState } from 'react';
 import {
   Box,
@@ -15,6 +16,7 @@ import {
   IconButton,
   Tooltip,
   Chip,
+  useTheme,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -24,8 +26,8 @@ import HearingsTodayCard from '../components/dashboard/HearingsTodayCard';
 import RecentCasesCard from '../components/dashboard/RecentCasesCard';
 import StatusChip from '../components/common/StatusChip';
 
-
 const Dashboard = () => {
+  const theme = useTheme();
   const [filter, setFilter] = useState('aktywne');
 
   // Ostatnie dokumenty
@@ -131,9 +133,9 @@ const Dashboard = () => {
       sx={{ 
         flexGrow: 1, 
         p: 3, 
-        backgroundColor: '#1a1a1a', 
+        backgroundColor: theme.palette.background.default,
         minHeight: '100vh',
-        color: '#fff'
+        color: theme.palette.text.primary,
       }}
     >
       <Toolbar />
@@ -162,14 +164,26 @@ const Dashboard = () => {
           <Card 
             sx={{ 
               mb: 3,
-              backgroundColor: '#2d2d2d',
-              color: '#fff',
-              border: '1px solid #404040'
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: theme.palette.mode === 'light' 
+                  ? '0 4px 12px rgba(0, 0, 0, 0.1)' 
+                  : '0 4px 12px rgba(0, 0, 0, 0.3)',
+              },
             }}
           >
             <CardHeader
               title="📄 Ostatnie dokumenty"
-              titleTypographyProps={{ variant: 'h6', sx: { color: '#fff' } }}
+              titleTypographyProps={{ 
+                variant: 'h6', 
+                sx: { 
+                  color: theme.palette.text.primary,
+                  fontWeight: '600',
+                } 
+              }}
             />
             <CardContent sx={{ p: 0 }}>
               <List disablePadding>
@@ -178,30 +192,55 @@ const Dashboard = () => {
                     <ListItem
                       sx={{
                         p: 2,
-                        '&:hover': { backgroundColor: '#363636' },
-                        borderColor: '#404040'
+                        '&:hover': { 
+                          backgroundColor: theme.palette.mode === 'light'
+                            ? 'rgba(0, 0, 0, 0.04)'
+                            : 'rgba(255, 255, 255, 0.08)',
+                        },
+                        transition: 'background-color 0.2s ease',
                       }}
                     >
                       <ListItemText
                         primary={
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#fff' }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 'bold', 
+                              color: theme.palette.text.primary 
+                            }}
+                          >
                             {doc.title}
                           </Typography>
                         }
                         secondary={
-                          <Typography variant="caption" sx={{ color: '#b0b0b0' }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: theme.palette.text.secondary,
+                              mt: 0.5,
+                              display: 'block',
+                            }}
+                          >
                             {doc.uploadedBy} • {doc.uploadedAt} • {doc.size}
                           </Typography>
                         }
                       />
                       <Tooltip title="Pobierz">
-                        <IconButton size="small" sx={{ color: '#b0b0b0' }}>
+                        <IconButton 
+                          size="small" 
+                          sx={{ 
+                            color: theme.palette.text.secondary,
+                            '&:hover': {
+                              color: theme.palette.primary.main,
+                            },
+                          }}
+                        >
                           <DownloadIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </ListItem>
                     {index < recentDocuments.length - 1 && 
-                      <Divider sx={{ borderColor: '#404040' }} />
+                      <Divider sx={{ borderColor: theme.palette.divider }} />
                     }
                   </React.Fragment>
                 ))}
@@ -213,14 +252,26 @@ const Dashboard = () => {
           <Card 
             sx={{ 
               mb: 3,
-              backgroundColor: '#2d2d2d',
-              color: '#fff',
-              border: '1px solid #404040'
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: theme.palette.mode === 'light' 
+                  ? '0 4px 12px rgba(0, 0, 0, 0.1)' 
+                  : '0 4px 12px rgba(0, 0, 0, 0.3)',
+              },
             }}
           >
             <CardHeader
               title="🔔 Powiadomienia"
-              titleTypographyProps={{ variant: 'h6', sx: { color: '#fff' } }}
+              titleTypographyProps={{ 
+                variant: 'h6', 
+                sx: { 
+                  color: theme.palette.text.primary,
+                  fontWeight: '600',
+                } 
+              }}
             />
             <CardContent sx={{ p: 0 }}>
               <List disablePadding>
@@ -230,10 +281,26 @@ const Dashboard = () => {
                       sx={{ 
                         p: 2, 
                         alignItems: 'flex-start',
-                        '&:hover': { backgroundColor: '#363636' }
+                        '&:hover': { 
+                          backgroundColor: theme.palette.mode === 'light'
+                            ? 'rgba(0, 0, 0, 0.04)'
+                            : 'rgba(255, 255, 255, 0.08)',
+                        },
+                        transition: 'background-color 0.2s ease',
                       }}
                     >
-                      <Avatar sx={{ mr: 2, width: 32, height: 32, fontSize: '1rem', bgcolor: '#3d3d3d' }}>
+                      <Avatar 
+                        sx={{ 
+                          mr: 2, 
+                          width: 32, 
+                          height: 32, 
+                          fontSize: '1rem',
+                          backgroundColor: theme.palette.mode === 'light'
+                            ? 'rgba(25, 118, 210, 0.1)'
+                            : 'rgba(224, 224, 224, 0.1)',
+                          color: theme.palette.primary.main,
+                        }}
+                      >
                         {notif.type === 'hearing'
                           ? '📅'
                           : notif.type === 'document'
@@ -244,19 +311,31 @@ const Dashboard = () => {
                       </Avatar>
                       <ListItemText
                         primary={
-                          <Typography variant="body2" sx={{ color: '#fff' }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: theme.palette.text.primary,
+                            }}
+                          >
                             {notif.message}
                           </Typography>
                         }
                         secondary={
-                          <Typography variant="caption" sx={{ color: '#b0b0b0' }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: theme.palette.text.secondary,
+                              mt: 0.5,
+                              display: 'block',
+                            }}
+                          >
                             {notif.time}
                           </Typography>
                         }
                       />
                     </ListItem>
                     {index < notifications.length - 1 && 
-                      <Divider sx={{ borderColor: '#404040' }} />
+                      <Divider sx={{ borderColor: theme.palette.divider }} />
                     }
                   </React.Fragment>
                 ))}
@@ -267,14 +346,26 @@ const Dashboard = () => {
           {/* Dziennik audytu (Admin) */}
           <Card
             sx={{ 
-              backgroundColor: '#2d2d2d',
-              color: '#fff',
-              border: '1px solid #404040'
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: theme.palette.mode === 'light' 
+                  ? '0 4px 12px rgba(0, 0, 0, 0.1)' 
+                  : '0 4px 12px rgba(0, 0, 0, 0.3)',
+              },
             }}
           >
             <CardHeader
               title="📊 Ostatnia aktywność"
-              titleTypographyProps={{ variant: 'h6', sx: { color: '#fff' } }}
+              titleTypographyProps={{ 
+                variant: 'h6', 
+                sx: { 
+                  color: theme.palette.text.primary,
+                  fontWeight: '600',
+                } 
+              }}
             />
             <CardContent sx={{ p: 0 }}>
               <List disablePadding>
@@ -284,18 +375,35 @@ const Dashboard = () => {
                       sx={{ 
                         p: 2, 
                         alignItems: 'flex-start',
-                        '&:hover': { backgroundColor: '#363636' }
+                        '&:hover': { 
+                          backgroundColor: theme.palette.mode === 'light'
+                            ? 'rgba(0, 0, 0, 0.04)'
+                            : 'rgba(255, 255, 255, 0.08)',
+                        },
+                        transition: 'background-color 0.2s ease',
                       }}
                     >
                       <ListItemText
                         primary={
-                          <Typography variant="body2" sx={{ color: '#fff' }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: theme.palette.text.primary,
+                            }}
+                          >
                             <strong>{log.user}</strong> {log.action}{' '}
                             <strong>{log.object}</strong>
                           </Typography>
                         }
                         secondary={
-                          <Typography variant="caption" sx={{ color: '#b0b0b0' }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: theme.palette.text.secondary,
+                              mt: 0.5,
+                              display: 'block',
+                            }}
+                          >
                             {log.timestamp} • {log.ip}
                           </Typography>
                         }
@@ -309,7 +417,7 @@ const Dashboard = () => {
                       />
                     </ListItem>
                     {index < auditLogs.length - 1 && 
-                      <Divider sx={{ borderColor: '#404040' }} />
+                      <Divider sx={{ borderColor: theme.palette.divider }} />
                     }
                   </React.Fragment>
                 ))}

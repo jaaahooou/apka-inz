@@ -1,6 +1,6 @@
 from django.urls import path
 from .views.role_views import role_list_create, role_detail_crud
-from .views import user_views, case_views, document_views, hearing_views, notification_views, CaseParticipant_views, auditLog_views
+from .views import user_views, case_views, document_views, hearing_views, notification_views, CaseParticipant_views, auditLog_views, chatRoom_views
 
 urlpatterns = [
  # Role endpoints
@@ -51,6 +51,15 @@ urlpatterns = [
     path('audit-logs/user/<int:user_id>/', auditLog_views.audit_log_by_user, name='audit-log-by-user'),
     path('audit-logs/statistics/', auditLog_views.audit_log_statistics, name='audit-log-statistics'),
     path('audit-logs/create/', auditLog_views.create_audit_log, name='create-audit-log'),
+    
+     # Pokoje
+    path('rooms/', chatRoom_views.chat_rooms, name='chat_rooms'),
+    path('rooms/<int:pk>/', chatRoom_views.chat_room_detail, name='chat_room_detail'),
+    
+    # Wiadomości
+    path('rooms/<int:pk>/messages/', chatRoom_views.room_messages, name='room_messages'),
+    path('messages/<int:pk>/', chatRoom_views.message_detail, name='message_detail'),
+    path('messages/<int:pk>/read/', chatRoom_views.mark_as_read, name='mark_as_read'),
     
 ]
 
