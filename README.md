@@ -585,65 +585,20 @@ text
 - Plus pola z AbstractUser: username, password, email, first_name, last_name
 
 ### Case
-- case_number (CharField, unique)
-- title (CharField)
-- description (TextField)
-- status (CharField)
-- creator (ForeignKey do User)
-- created_at (DateTimeField, auto_now_add)
+class Case(models.Model):
+case_number = CharField(max_length=100, unique=True)
+title = CharField(max_length=200)
+description = TextField()
+status = CharField(max_length=100)
+creator = ForeignKey(User, on_delete=SET_NULL, null=True)
+created_at = DateTimeField(auto_now_add=True)
 
-### CaseParticipant
-- case (ForeignKey do Case)
-- user (ForeignKey do User)
-- role_in_case (CharField z choices)
-- description (TextField, opcjonalne)
-- is_active (BooleanField, default=True)
-- joined_at (DateTimeField, auto_now_add)
-- left_at (DateTimeField, opcjonalne)
-- contact_email (EmailField, opcjonalne)
-- contact_phone (CharField, opcjonalne)
-- **unique_together**: ('case', 'user', 'role_in_case')
+text
 
-### Hearing
-- case (ForeignKey do Case)
-- date_time (DateTimeField)
-- location (CharField)
-- status (CharField z choices: zaplanowana, odbyta, odłożona)
-- judge (ForeignKey do User, opcjonalne)
-- notes (TextField, opcjonalne)
-- created_at (DateTimeField, auto_now_add)
-
-### Document
-- title (CharField)
-- description (TextField, opcjonalne)
-- file (FileField)
-- case (ForeignKey do Case)
-- uploaded_by (ForeignKey do User, opcjonalne)
-- uploaded_at (DateTimeField, auto_now_add)
-- file_size (IntegerField, opcjonalne)
-
-### Notification
-- user (ForeignKey do User)
-- title (CharField)
-- message (TextField)
-- notification_type (CharField z choices)
-- is_read (BooleanField)
-- case (ForeignKey do Case, opcjonalne)
-- hearing (ForeignKey do Hearing, opcjonalne)
-- document (ForeignKey do Document, opcjonalne)
-- sender (ForeignKey do User, opcjonalne)
-- sent_at (DateTimeField, auto_now_add)
-- read_at (DateTimeField, opcjonalne)
-
-### AuditLog
-- user (ForeignKey do User)
-- action (CharField z choices: CREATE, UPDATE, DELETE, VIEW, DOWNLOAD, LOGIN, LOGOUT)
-- object_type (CharField z choices: Case, Hearing, Document, User, Role, CaseParticipant, Notification)
-- object_id (IntegerField)
-- object_name (CharField)
-- description (TextField)
-- old_value (TextField - JSON)
-- new_value (TextField - JSON)
-- ip_address (GenericIPAddressField)
-- user_agent (TextField)
-- timestamp (DateTimeField, auto_now_add, db_index=True)
+Pola:
+- case_number (wymagane, unikalne)
+- title (wymagane)
+- description (wymagane)
+- status (wymagane)
+- creator (automatycznie ustawiane, nullable)
+- created_at (automatycznie ustawiane)
