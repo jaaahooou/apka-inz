@@ -3,17 +3,10 @@ import {
   Box,
   Toolbar,
   Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Card,
   CardContent,
   CardHeader,
   Typography,
-  Chip,
   Avatar,
   List,
   ListItem,
@@ -21,46 +14,19 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  Chip,
 } from '@mui/material';
 import {
-  Edit as EditIcon,
-  MoreVert as MoreVertIcon,
   Download as DownloadIcon,
-  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import StatsCard from '../components/StatsCard';
 import HearingsTodayCard from '../components/dashboard/HearingsTodayCard';
+import RecentCasesCard from '../components/dashboard/RecentCasesCard';
+import StatusChip from '../components/common/StatusChip';
+
 
 const Dashboard = () => {
   const [filter, setFilter] = useState('aktywne');
-
-  // Ostatnie sprawy
-  const recentCases = [
-    {
-      id: 1,
-      caseNumber: 'CASE-2025-010',
-      title: 'Sprawa sprzedaży nieruchomości',
-      status: 'aktywna',
-      updatedAt: '2h temu',
-      participants: 3,
-    },
-    {
-      id: 2,
-      caseNumber: 'CASE-2025-009',
-      title: 'Sprawa rozwiązania umowy',
-      status: 'aktywna',
-      updatedAt: '4h temu',
-      participants: 2,
-    },
-    {
-      id: 3,
-      caseNumber: 'CASE-2025-008',
-      title: 'Sprawa o odszkodowanie',
-      status: 'zamknięta',
-      updatedAt: 'Wczoraj',
-      participants: 4,
-    },
-  ];
 
   // Ostatnie dokumenty
   const recentDocuments = [
@@ -146,40 +112,6 @@ const Dashboard = () => {
     },
   ];
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'zaplanowana':
-        return 'info';
-      case 'odbyta':
-        return 'success';
-      case 'odłożona':
-        return 'warning';
-      case 'aktywna':
-        return 'success';
-      case 'zamknięta':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'zaplanowana':
-        return 'Zaplanowana';
-      case 'odbyta':
-        return 'Odbyta';
-      case 'odłożona':
-        return 'Odłożona';
-      case 'aktywna':
-        return 'Aktywna';
-      case 'zamknięta':
-        return 'Zamknięta';
-      default:
-        return status;
-    }
-  };
-
   const getActionColor = (action) => {
     switch (action) {
       case 'CREATE':
@@ -220,66 +152,8 @@ const Dashboard = () => {
           {/* ✅ HEARINGS TODAY COMPONENT */}
           <HearingsTodayCard />
 
-          {/* Ostatnie sprawy */}
-          <Card
-            sx={{ 
-              backgroundColor: '#2d2d2d',
-              color: '#fff',
-              border: '1px solid #404040'
-            }}
-          >
-            <CardHeader
-              title="📋 Ostatnie sprawy"
-              subheader="Ostatnio edytowane sprawy"
-              titleTypographyProps={{ variant: 'h6', sx: { color: '#fff' } }}
-              subheaderTypographyProps={{ sx: { color: '#b0b0b0' } }}
-            />
-            <TableContainer>
-              <Table>
-                <TableHead sx={{ backgroundColor: '#1f1f1f' }}>
-                  <TableRow>
-                    <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Numer sprawy</TableCell>
-                    <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Tytuł</TableCell>
-                    <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Status</TableCell>
-                    <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Uczestnicy</TableCell>
-                    <TableCell sx={{ color: '#b0b0b0', borderColor: '#404040' }}>Edytowana</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentCases.map((caseItem) => (
-                    <TableRow 
-                      key={caseItem.id} 
-                      hover
-                      sx={{ 
-                        '&:hover': { backgroundColor: '#363636' },
-                        borderColor: '#404040'
-                      }}
-                    >
-                      <TableCell sx={{ color: '#fff', fontWeight: 'bold', borderColor: '#404040' }}>
-                        {caseItem.caseNumber}
-                      </TableCell>
-                      <TableCell sx={{ color: '#fff', borderColor: '#404040' }}>
-                        {caseItem.title}
-                      </TableCell>
-                      <TableCell sx={{ borderColor: '#404040' }}>
-                        <Chip
-                          label={getStatusLabel(caseItem.status)}
-                          color={getStatusColor(caseItem.status)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ color: '#fff', borderColor: '#404040' }}>
-                        {caseItem.participants}
-                      </TableCell>
-                      <TableCell sx={{ color: '#fff', borderColor: '#404040' }}>
-                        {caseItem.updatedAt}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
+          {/* ✅ RECENT CASES COMPONENT */}
+          <RecentCasesCard />
         </Grid>
 
         {/* KOLUMNA 2 - Dokumenty, powiadomienia, audyt */}
