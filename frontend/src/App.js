@@ -2,8 +2,8 @@ import React from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+// import Header from './components/Header';
+// import Sidebar from './components/Sidebar';
 import Dashboard from './views/Dashboard';
 import Login from './views/Login';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -17,6 +17,7 @@ import UserCalendar from './views/UserCalendar';
 import UserCases from './views/UserCases';
 import CalendarForUser from './components/CalendarForUser';
 import Register from './views/Register';
+import { AuthProvider } from './contexts/AuthContext';
 
 const darkTheme = createTheme({
   palette: {
@@ -31,6 +32,7 @@ const darkTheme = createTheme({
 
 function App() {
   return (
+    <AuthProvider>
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <BrowserRouter>
@@ -64,7 +66,7 @@ function App() {
             element={
               <PrivateRoute>
                 <DashboardLayout>
-                  <Home />
+                  <Dashboard />
                 </DashboardLayout>
               </PrivateRoute>
             }
@@ -139,6 +141,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
+    </AuthProvider>
   );
 }
 

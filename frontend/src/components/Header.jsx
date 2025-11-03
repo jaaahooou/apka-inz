@@ -15,11 +15,6 @@ const Header = ({ onMenuClick }) => {
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('username');
 
-    // Opcjonalnie usuń header autoryzacji globalnie (axios)
-    // import axios w tym pliku, jeśli jeszcze nie jest
-    // import axios from 'axios';
-    // delete axios.defaults.headers.common['Authorization'];
-
     // Przekieruj na stronę logowania
     navigate('/login');
   };
