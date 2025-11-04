@@ -25,6 +25,12 @@ import useCases from '../../hooks/useCases';
 import CaseDetailsModal from './CaseDetailsModal';
 import CaseEditModal from './CaseEditModal';
 
+// ✅ Funkcja do skrócenia tekstu
+const truncateText = (text, maxLength = 30) => {
+  if (!text) return 'N/A';
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+};
+
 const RecentCasesCard = () => {
   const theme = useTheme();
   const { data = [], loading, error, refetch } = useCases();
@@ -141,30 +147,30 @@ const RecentCasesCard = () => {
           },
         }}
       >
-   <CardHeader
-  title="📋 Ostatnie sprawy"
-  subheader={`${recentCases.length} ostatnio edytowanych spraw`}
-  titleTypographyProps={{
-    variant: 'h6',
-    sx: {
-      color: theme.palette.text.primary,
-      fontWeight: 600,
-      lineHeight: 1.3,
-    },
-  }}
-  subheaderTypographyProps={{
-    variant: 'body2',
-    sx: {
-      color: theme.palette.text.secondary,
-      fontSize: '0.875rem',
-      mt: 0.5,
-    },
-  }}
-
-/>
-<Divider sx={{ borderColor: theme.palette.divider, m: 0 }} />
-        <TableContainer>
-          <Table>
+        <CardHeader
+          title="📋 Ostatnie sprawy"
+          subheader={`${recentCases.length} ostatnio edytowanych spraw`}
+          titleTypographyProps={{
+            variant: 'h6',
+            sx: {
+              color: theme.palette.text.primary,
+              fontWeight: 600,
+              lineHeight: 1.3,
+            },
+          }}
+          subheaderTypographyProps={{
+            variant: 'body2',
+            sx: {
+              color: theme.palette.text.secondary,
+              fontSize: '0.875rem',
+              mt: 0.5,
+            },
+          }}
+        />
+        <Divider sx={{ borderColor: theme.palette.divider, m: 0 }} />
+        
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table size="small">
             <TableHead
               sx={{
                 backgroundColor:
@@ -179,7 +185,8 @@ const RecentCasesCard = () => {
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
+                    minWidth: '100px',
                   }}
                 >
                   Numer sprawy
@@ -189,7 +196,8 @@ const RecentCasesCard = () => {
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
+                    minWidth: '140px',
                   }}
                 >
                   Tytuł
@@ -199,7 +207,8 @@ const RecentCasesCard = () => {
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
+                    minWidth: '80px',
                   }}
                 >
                   Status
@@ -209,29 +218,30 @@ const RecentCasesCard = () => {
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
                   }}
                   align="center"
                 >
-                  Rozprawy
+                  Rozp.
                 </TableCell>
                 <TableCell
                   sx={{
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
                   }}
                   align="center"
                 >
-                  Uczestnicy
+                  Ucz.
                 </TableCell>
                 <TableCell
                   sx={{
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
+                    minWidth: '90px',
                   }}
                 >
                   Edytowana
@@ -242,7 +252,7 @@ const RecentCasesCard = () => {
                     color: theme.palette.text.secondary,
                     borderColor: theme.palette.divider,
                     fontWeight: '600',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
                   }}
                 >
                   Akcje
@@ -271,15 +281,17 @@ const RecentCasesCard = () => {
                         color: theme.palette.text.primary,
                         fontWeight: '600',
                         borderColor: theme.palette.divider,
+                        fontSize: '0.875rem',
                       }}
                     >
-                      {caseItem.case_number || 'N/A'}
+                      {truncateText(caseItem.case_number, 15)}
                     </TableCell>
                     <TableCell
                       sx={{
                         color: theme.palette.text.primary,
                         borderColor: theme.palette.divider,
-                        maxWidth: '200px',
+                        maxWidth: '140px',
+                        fontSize: '0.875rem',
                       }}
                     >
                       <Tooltip title={caseItem.title || 'Brak tytułu'}>
@@ -291,11 +303,16 @@ const RecentCasesCard = () => {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {caseItem.title || 'Brak tytułu'}
+                          {truncateText(caseItem.title, 20)}
                         </Typography>
                       </Tooltip>
                     </TableCell>
-                    <TableCell sx={{ borderColor: theme.palette.divider }}>
+                    <TableCell 
+                      sx={{ 
+                        borderColor: theme.palette.divider,
+                        fontSize: '0.875rem',
+                      }}
+                    >
                       <StatusChip status={caseItem.status} />
                     </TableCell>
                     <TableCell
@@ -303,6 +320,7 @@ const RecentCasesCard = () => {
                         color: theme.palette.text.primary,
                         borderColor: theme.palette.divider,
                         textAlign: 'center',
+                        fontSize: '0.875rem',
                       }}
                     >
                       <Chip
@@ -312,6 +330,7 @@ const RecentCasesCard = () => {
                           backgroundColor: theme.palette.primary.main,
                           color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
                           fontWeight: '500',
+                          height: '20px',
                         }}
                       />
                     </TableCell>
@@ -320,6 +339,7 @@ const RecentCasesCard = () => {
                         color: theme.palette.text.primary,
                         borderColor: theme.palette.divider,
                         textAlign: 'center',
+                        fontSize: '0.875rem',
                       }}
                     >
                       <Chip
@@ -329,6 +349,7 @@ const RecentCasesCard = () => {
                           backgroundColor: theme.palette.success?.main || '#4caf50',
                           color: '#fff',
                           fontWeight: '500',
+                          height: '20px',
                         }}
                       />
                     </TableCell>
@@ -336,6 +357,7 @@ const RecentCasesCard = () => {
                       sx={{
                         color: theme.palette.text.secondary,
                         borderColor: theme.palette.divider,
+                        fontSize: '0.875rem',
                       }}
                     >
                       {formatTimeAgo(caseItem.updated_at || caseItem.created_at)}
