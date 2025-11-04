@@ -13,7 +13,7 @@ import UserDocs from './views/UserDocs';
 import UserData from './views/UserData';
 import UserCalendar from './views/UserCalendar';
 import UserCases from './views/UserCases';
-import CalendarForUser from './components/CalendarForUser';
+import CalendarView from './views/UserCalendar';
 import Register from './views/Register';
 import ChatPage from './views/ChatPage';
 import { AuthProvider } from './contexts/AuthContext';
@@ -100,8 +100,7 @@ function App() {
               element={
                 <PrivateRoute>
                   <DashboardLayout>
-                    <UserCalendar />
-                    <CalendarForUser />
+                    <CalendarView />
                   </DashboardLayout>
                 </PrivateRoute>
               }

@@ -35,7 +35,7 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
 
   const mainMenuItems = [
     { text: 'Strona Główna', path: '/home', icon: HomeIcon },
-    { text: 'Twoje sprawy', path: '/reports', icon: GavelIcon },
+    { text: 'Twoje sprawy', path: '/usercases', icon: GavelIcon },
     { text: 'Kalendarz', path: '/usercalendar', icon: EventIcon },
     { text: 'Pisma', path: '/userdocs', icon: DescriptionIcon },
     { text: 'Twoje dane', path: '/userdata', icon: PersonIcon },

@@ -8,6 +8,7 @@
     "@fontsource/montserrat": "^5.2.8",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
+    "@mui/x-data-grid": "^8.16.0",
     "@mui/x-date-pickers": "^8.16.0",
     "axios": "^1.7.9",
     "cra-template": "1.2.0",
