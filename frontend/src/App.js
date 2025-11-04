@@ -15,7 +15,7 @@ import UserCalendar from './views/UserCalendar';
 import UserCases from './views/UserCases';
 import CalendarForUser from './components/CalendarForUser';
 import Register from './views/Register';
-import ChatPage from './views/chat/ChatPage';
+import ChatPage from './views/ChatPage';
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {

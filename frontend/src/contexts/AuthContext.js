@@ -26,7 +26,8 @@ export const AuthProvider = ({ children }) => {
       storage.setItem('access_token', access);
       storage.setItem('refresh_token', refresh);
       storage.setItem('username', username);
-
+      localStorage.setItem('access_token', access);
+      localStorage.setItem('refresh_token', refresh);
       // Ustaw token w Axios
       API.defaults.headers.common['Authorization'] = `Bearer ${access}`;
 

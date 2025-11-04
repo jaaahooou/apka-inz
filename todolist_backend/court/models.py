@@ -258,26 +258,34 @@ class ChatRoom(models.Model):
 
 
 class Message(models.Model):
-    """
-    Wiadomość.
-    """
-    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
-    sender = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages'
+    # ✅ DODAJ recipient FIELD!
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    recipient = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='received_messages', 
+        null=True,  # Null dla wiadomości w pokojach
+        blank=True  # Optional
+    )
+    room = models.ForeignKey(
+        ChatRoom, 
+        on_delete=models.CASCADE, 
+        related_name='messages', 
+        null=True, 
+        blank=True
     )
     content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['created_at']
-        indexes = [
-            models.Index(fields=['room', 'created_at']),
-            models.Index(fields=['sender', 'created_at']),
-        ]
 
     def __str__(self):
-        return f"{getattr(self.sender, 'username', self.sender_id)}: {self.content[:50]}"
+        if self.room:
+            return f"{self.sender} -> {self.room}: {self.content[:50]}"
+        return f"{self.sender} -> {self.recipient}: {self.content[:50]}"
 
 
 class FavoriteContact(models.Model):

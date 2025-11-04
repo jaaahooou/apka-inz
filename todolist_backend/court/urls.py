@@ -3,6 +3,9 @@ from .views.role_views import role_list_create, role_detail_crud
 from .views import user_views, case_views, document_views, hearing_views, notification_views, CaseParticipant_views, auditLog_views, chatRoom_views
 
 urlpatterns = [
+  
+   # ========== BIEŻĄCY UŻYTKOWNIK ==========
+    path('auth/me/', chatRoom_views.current_user, name='current-user'),
  # Role endpoints
     path('roles/', role_list_create, name='role-list-create'),
     path('roles/<int:pk>/', role_detail_crud, name='role-detail-crud'),
@@ -52,14 +55,12 @@ urlpatterns = [
     path('audit-logs/statistics/', auditLog_views.audit_log_statistics, name='audit-log-statistics'),
     path('audit-logs/create/', auditLog_views.create_audit_log, name='create-audit-log'),
     
-     # Pokoje
-    path('rooms/', chatRoom_views.chat_rooms, name='chat_rooms'),
-    path('rooms/<int:pk>/', chatRoom_views.chat_room_detail, name='chat_room_detail'),
-    
-    # Wiadomości
-    path('rooms/<int:pk>/messages/', chatRoom_views.room_messages, name='room_messages'),
-    path('messages/<int:pk>/', chatRoom_views.message_detail, name='message_detail'),
-    path('messages/<int:pk>/read/', chatRoom_views.mark_as_read, name='mark_as_read'),
+     # Komunikator
+    path('messages/', chatRoom_views.private_messages, name='private-messages'),
+    path('messages/<int:pk>/', chatRoom_views.private_message_detail, name='private-message-detail'),
+    path('messages/<int:pk>/delete/', chatRoom_views.delete_private_message, name='delete-private-message'),
+    path('messages/<int:pk>/read/', chatRoom_views.mark_private_message_as_read, name='mark-private-message-read'),
+    path('messages/unread-count/', chatRoom_views.unread_message_count, name='unread-message-count'),
     
 ]
 

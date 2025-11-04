@@ -151,11 +151,31 @@ class AuditLogSerializer(serializers.ModelSerializer):
 #Chatroom serializer
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)  # ✅ IntegerField zamiast CharField
+    recipient_username = serializers.CharField(source='recipient.username', read_only=True, allow_null=True)
     
     class Meta:
         model = Message
-        fields = ['id', 'room', 'sender', 'sender_username', 'content', 'created_at', 'is_read']
-        read_only_fields = ['created_at', 'sender']
+        fields = [
+            'id', 
+            'sender', 
+            'sender_id',  # Teraz będzie number, nie string
+            'sender_username', 
+            'recipient', 
+            'recipient_username',
+            'content', 
+            'created_at', 
+            'is_read',
+            'room'
+        ]
+        read_only_fields = ['created_at', 'sender', 'sender_id', 'sender_username', 'recipient_username']
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    messages = MessageSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'name', 'created_at', 'messages']
 
 
 class ChatRoomSerializer(serializers.ModelSerializer):
