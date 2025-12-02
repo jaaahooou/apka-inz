@@ -10,6 +10,7 @@ import {
     Avatar,
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import "@fontsource/montserrat/400.css";
 
 const Register = () => {
@@ -20,6 +21,7 @@ const Register = () => {
     const [surname, setSurname] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(false); // Nowy stan do obsługi sukcesu
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -34,24 +36,91 @@ const Register = () => {
             last_name: surname,
             phone: phoneNumber,
             role: null,
-            status: "active"
+            status: "active" // To zostanie nadpisane przez backend na is_active=False
         };
 
         try {
+            // Zamień localhost na odpowiedni adres, jeśli jest inny
             const response = await axios.post("http://localhost:8000/court/users/", userData, {
                 headers: {
                     "Content-Type": "application/json"
                 }
             });
 
-            navigate("/login");
+            // ZAMIAST PRZEKIEROWANIA - POKAZUJEMY SUKCES
+            setSuccess(true);
 
         } catch (err) {
             console.error("Błąd rejestracji:", err.response?.data || err.message);
-            setError(JSON.stringify(err.response?.data) || "Nie udało się zarejestrować użytkownika.");
+            // Wyciągamy ładniejszy błąd jeśli backend go zwróci
+            let errorMsg = "Nie udało się zarejestrować użytkownika.";
+            if (err.response?.data) {
+                 if(typeof err.response.data === 'string') errorMsg = err.response.data;
+                 else if(err.response.data.detail) errorMsg = err.response.data.detail;
+                 else errorMsg = JSON.stringify(err.response.data);
+            }
+            setError(errorMsg);
         }
     };
 
+    // JEŚLI SUKCES - WYŚWIETL KOMUNIKAT ZAMIAST FORMULARZA
+    if (success) {
+        return (
+            <Box
+                sx={{
+                    minHeight: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'background.default',
+                }}
+            >
+                <Paper
+                    elevation={9}
+                    sx={{
+                        p: 4,
+                        width: 500,
+                        maxWidth: 500,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        bgcolor: 'background.paper',
+                        borderRadius: 4,
+                        textAlign: 'center'
+                    }}
+                >
+                    <Avatar sx={{ m: 1, bgcolor: 'success.main', width: 60, height: 60 }}>
+                        <CheckCircleOutlineIcon sx={{ fontSize: 40 }} />
+                    </Avatar>
+                    
+                    <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                        Rejestracja pomyślna!
+                    </Typography>
+                    
+                    <Typography variant="body1" sx={{ mb: 4 }}>
+                        Twoje konto zostało utworzone. <br/>
+                        Poczekaj na aktywację konta przez Administratora, zanim będziesz mógł się zalogować.
+                    </Typography>
+
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        fullWidth
+                        onClick={() => navigate('/login')}
+                        sx={{
+                            borderRadius: '9999px',
+                            py: 1.5,
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        Wróć do logowania
+                    </Button>
+                </Paper>
+            </Box>
+        );
+    }
+
+    // JEŚLI NIE MA SUKCESU - WYŚWIETL FORMULARZ
     return (
         <Box
             sx={{
@@ -159,14 +228,14 @@ const Register = () => {
                     Zarejestruj się
                 </Button>
 
-                        <Button
-                          fullWidth
-                          variant="text"
-                          color="primary"
-                          sx={{ mt: 4, mb: 2 }}
-                          onClick={()=> navigate('/login')}
-                        >
-                          Posiadam konto
+                <Button
+                    fullWidth
+                    variant="text"
+                    color="primary"
+                    sx={{ mt: 4, mb: 2 }}
+                    onClick={()=> navigate('/login')}
+                >
+                    Posiadam konto
                 </Button>
             </Paper>
         </Box>
