@@ -1,1 +1,24 @@
-/venv
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Baza danych (Tego nie wysyłamy!)
+db.sqlite3
+*.sqlite3
+
+# Zmienne środowiskowe i wirtualne środowisko
+.env
+.venv
+venv/
+env/
+
+# IDE (ustawienia Visual Studio Code)
+.vscode/
+.idea/
+.vs/
+
+# Node / Frontend
+node_modules/
+npm-debug.log

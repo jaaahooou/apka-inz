@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import '@fontsource/montserrat/400.css';
-import useAuth from '../hooks/useAuth'; // Użyj hooka!
+import useAuth from '../hooks/useAuth';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -34,7 +34,7 @@ const Login = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    setLocalError(null); // Wyczyść błąd gdy użytkownik zacznie pisać
+    setLocalError(null);
   };
 
   const handleSubmit = async (e) => {
@@ -47,7 +47,6 @@ const Login = () => {
       return;
     }
 
-    // Użyj handleLogin z contextu
     const success = await handleLogin(
       formData.username,
       formData.password,
@@ -58,6 +57,29 @@ const Login = () => {
       navigate('/dashboard');
     }
   };
+
+  // --- NOWA FUNKCJA: Tłumaczenie błędów ---
+const getTranslatedError = (error) => {
+    if (!error) return null;
+    
+    const errorString = typeof error === 'string' ? error : JSON.stringify(error);
+
+    // 1. Sytuacja: Konto istnieje, hasło poprawne, ale ADMIN NIE ZAAKCEPTOWAŁ
+    if (errorString.includes("ACCOUNT_DISABLED")) {
+      return "Twoje konto oczekuje na akceptację Administratora.";
+    }
+    
+    // 2. Sytuacja: Zły login, złe hasło LUB użytkownik w ogóle nie istnieje
+    if (errorString.includes("INVALID_CREDENTIALS") || errorString.includes("No active account")) {
+        return "Błędna nazwa użytkownika lub hasło.";
+    }
+
+    // Inne błędy
+    return "Wystąpił błąd logowania.";
+  };
+
+  // Ustalamy, jaki błąd wyświetlić (lokalny ma priorytet, potem backendowy przetłumaczony)
+  const displayError = localError || getTranslatedError(authError);
 
   return (
     <Box
@@ -122,10 +144,10 @@ const Login = () => {
           Logowanie
         </Typography>
 
-        {/* Error Messages */}
-        {(authError || localError) && (
+        {/* Error Messages - TUTAJ UŻYWAMY displayError */}
+        {displayError && (
           <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-            {authError || localError}
+            {displayError}
           </Alert>
         )}
 
