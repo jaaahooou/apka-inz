@@ -1,29 +1,42 @@
 from rest_framework import serializers
-from .models import Role
-from .models import User
-from .models import Case
-from .models import Document
-from .models import Hearing
-from .models import Notification
-from .models import CaseParticipant
-from .models import AuditLog
-from .models import Message, ChatRoom
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import authenticate 
-from rest_framework.exceptions import AuthenticationFailed
+from django.contrib.auth import authenticate
+from .models import Role, User, Case, Document, Hearing, Notification, CaseParticipant, AuditLog, Message, ChatRoom, CaseParty
 
+# --- 1. LOGOWANIE I TOKENY ---
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        username = attrs.get("username")
+        password = attrs.get("password")
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise AuthenticationFailed("INVALID_CREDENTIALS")
+
+        if not user.check_password(password):
+            raise AuthenticationFailed("INVALID_CREDENTIALS")
+
+        if not user.is_active:
+            raise AuthenticationFailed("ACCOUNT_DISABLED")
+
+        return super().validate(attrs)
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['role'] = str(user.role) if user.role else ""
+        token['username'] = user.username
+        return token
+
+# --- 2. UŻYTKOWNIK I ROLE ---
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
         fields = ['id', 'name', 'description']
-        
-
 
 class UserSerializer(serializers.ModelSerializer):
-    """
-    Główny serializer dla modelu User - do odczytu i tworzenia
-    """
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
     
     class Meta:
@@ -35,7 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
         }
     
     def create(self, validated_data):
-        # Użyj create_user, aby zahashować hasło
+        is_active = validated_data.get('is_active', True)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data.get('email', ''),
@@ -43,48 +56,52 @@ class UserSerializer(serializers.ModelSerializer):
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
         )
-        
-        # Dodaj pozostałe pola
         user.role = validated_data.get('role')
         user.phone = validated_data.get('phone', '')
         user.status = validated_data.get('status', '')
-        
-        # --- NAPRAWA: Pobierz is_active z danych (jeśli przesłaliśmy False, to użyj False) ---
-        user.is_active = validated_data.get('is_active', True) 
-        
+        user.is_active = is_active
         user.save()
         return user
 
 class UserUpdateSerializer(serializers.ModelSerializer):
-    """
-    Serializer do aktualizacji - pozwala edytować tylko role, phone i email
-    """
     class Meta:
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 
-                  'role', 'phone', 'status', 'created_at']
-        read_only_fields = ['id', 'username', 'first_name', 'last_name', 
-                           'status', 'created_at']
-        
+                  'role', 'phone', 'status', 'created_at', 'is_active']
+        read_only_fields = ['id', 'username', 'created_at'] 
+
+# --- 3. SPRAWY I DOKUMENTY (Z NOWYMI FUNKCJAMI) ---
+
+class CasePartySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CaseParty
+        fields = ['id', 'name', 'role']
 
 class CaseSerializer(serializers.ModelSerializer):
-    """
-    Serializer dla modelu Case
-    """
-    # Dodatkowe pole tylko do odczytu - pokazuje username twórcy
     creator_username = serializers.CharField(source='creator.username', read_only=True)
+    assigned_judge_username = serializers.CharField(source='assigned_judge.username', read_only=True)
     
+    parties = CasePartySerializer(many=True, required=False) 
+
     class Meta:
         model = Case
         fields = ['id', 'case_number', 'title', 'description', 'status', 
-                  'creator', 'creator_username', 'created_at']
+                  'creator', 'creator_username', 'assigned_judge', 'assigned_judge_username', 
+                  'created_at', 'filing_date', 'category', 'value_amount', 'parties']
         read_only_fields = ['id', 'creator', 'created_at']
+
+    def create(self, validated_data):
+        parties_data = validated_data.pop('parties', []) 
+        case = Case.objects.create(**validated_data)
         
-        
+        for party in parties_data:
+            CaseParty.objects.create(case=case, **party)
+            
+        return case
+
 class DocumentSerializer(serializers.ModelSerializer):
     uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
     file_url = serializers.SerializerMethodField()
-    
     class Meta:
         model = Document
         fields = ['id', 'title', 'description', 'file', 'file_url', 'case', 
@@ -96,23 +113,21 @@ class DocumentSerializer(serializers.ModelSerializer):
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
-    
+
 class HearingSerializer(serializers.ModelSerializer):
     judge_username = serializers.CharField(source='judge.username', read_only=True)
     case_number = serializers.CharField(source='case.case_number', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
     class Meta:
         model = Hearing
         fields = ['id', 'case', 'case_number', 'date_time', 'location', 'status', 
                   'status_display', 'judge', 'judge_username', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
-        
+
 class NotificationSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
     sender_username = serializers.CharField(source='sender.username', read_only=True, required=False)
     case_number = serializers.CharField(source='case.case_number', read_only=True, required=False)
-    
     class Meta:
         model = Notification
         fields = [
@@ -121,13 +136,12 @@ class NotificationSerializer(serializers.ModelSerializer):
             'hearing', 'document', 'sender', 'sender_username', 'sent_at'
         ]
         read_only_fields = ['id', 'sent_at', 'read_at']
-        
+
 class CaseParticipantSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_full_name = serializers.SerializerMethodField()
     role_display = serializers.CharField(source='get_role_in_case_display', read_only=True)
     case_number = serializers.CharField(source='case.case_number', read_only=True)
-    
     class Meta:
         model = CaseParticipant
         fields = [
@@ -136,15 +150,13 @@ class CaseParticipantSerializer(serializers.ModelSerializer):
             'joined_at', 'left_at', 'contact_email', 'contact_phone'
         ]
         read_only_fields = ['id', 'joined_at']
-    
     def get_user_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
-    
+
 class AuditLogSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True, required=False)
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     object_type_display = serializers.CharField(source='get_object_type_display', read_only=True)
-    
     class Meta:
         model = AuditLog
         fields = [
@@ -154,73 +166,22 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'timestamp'
         ]
         read_only_fields = ['id', 'timestamp']
-        
 
-#Chatroom serializer
+# --- 4. KOMUNIKATOR ---
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
-    sender_id = serializers.IntegerField(source='sender.id', read_only=True)  # ✅ IntegerField zamiast CharField
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True) 
     recipient_username = serializers.CharField(source='recipient.username', read_only=True, allow_null=True)
-    
     class Meta:
         model = Message
         fields = [
-            'id', 
-            'sender', 
-            'sender_id',  # Teraz będzie number, nie string
-            'sender_username', 
-            'recipient', 
-            'recipient_username',
-            'content', 
-            'created_at', 
-            'is_read',
-            'room'
+            'id', 'sender', 'sender_id', 'sender_username', 'recipient', 
+            'recipient_username', 'content', 'created_at', 'is_read', 'room'
         ]
         read_only_fields = ['created_at', 'sender', 'sender_id', 'sender_username', 'recipient_username']
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
-    
     class Meta:
         model = ChatRoom
         fields = ['id', 'name', 'created_at', 'messages']
-
-
-class ChatRoomSerializer(serializers.ModelSerializer):
-    messages = MessageSerializer(many=True, read_only=True)
-    
-    class Meta:
-        model = ChatRoom
-        fields = ['id', 'name', 'created_at', 'messages']
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        username = attrs.get("username")
-        password = attrs.get("password")
-
-        # KROK 1: Sprawdźmy ręcznie, czy użytkownik w ogóle istnieje
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            # Jeśli nie ma takiego loginu -> Błąd danych
-            raise AuthenticationFailed("INVALID_CREDENTIALS")
-
-        # KROK 2: Sprawdźmy hasło (niezależnie od tego czy aktywny)
-        if not user.check_password(password):
-            # Jeśli złe hasło -> Błąd danych
-            raise AuthenticationFailed("INVALID_CREDENTIALS")
-
-        # KROK 3: Skoro login i hasło są OK, to teraz sprawdzamy czy AKTYWNY
-        if not user.is_active:
-            # Login/hasło super, ale konto zablokowane -> Specjalny błąd
-            raise AuthenticationFailed("ACCOUNT_DISABLED")
-
-        # KROK 4: Jeśli wszystko OK, generujemy token
-        return super().validate(attrs)
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token['role'] = str(user.role)
-        token['username'] = user.username
-        return token

@@ -1,4 +1,3 @@
-// src/components/Sidebar.jsx
 import React, { useContext } from 'react';
 import {
   Drawer,
@@ -24,7 +23,11 @@ import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChatIcon from '@mui/icons-material/Chat';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import SecurityIcon from '@mui/icons-material/Security'; 
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'; 
 import { ThemeContext } from '../contexts/ThemeContext';
+import useAuth from '../hooks/useAuth';
+import FolderSharedIcon from '@mui/icons-material/FolderShared';
 
 const drawerWidth = 280;
 
@@ -32,13 +35,71 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
   const location = useLocation();
   const theme = useTheme();
   const { currentTheme } = useContext(ThemeContext);
+  
+  const { user } = useAuth();
+  
+  // Pobieramy rolę z tokena
+  const userRole = user?.role || ''; 
 
   const mainMenuItems = [
-    { text: 'Strona Główna', path: '/home', icon: HomeIcon },
-    { text: 'Twoje sprawy', path: '/usercases', icon: GavelIcon },
-    { text: 'Kalendarz', path: '/usercalendar', icon: EventIcon },
-    { text: 'Pisma', path: '/userdocs', icon: DescriptionIcon },
-    { text: 'Twoje dane', path: '/userdata', icon: PersonIcon },
+    { 
+        text: 'Strona Główna', 
+        path: '/home', 
+        icon: HomeIcon 
+    },
+    { 
+        text: 'Twoje sprawy', 
+        path: '/usercases', 
+        icon: GavelIcon 
+    },
+    { 
+        text: 'Kalendarz', 
+        path: '/usercalendar', 
+        icon: EventIcon 
+    },
+    { 
+        text: 'Pisma', 
+        path: '/userdocs', 
+        icon: DescriptionIcon 
+    },
+    { 
+        text: 'Twoje dane', 
+        path: '/userdata', 
+        icon: PersonIcon 
+    },
+
+    // --- DLA SĘDZIEGO ---
+    { 
+        text: 'Wokanda Sędziowska', 
+        path: '/judge/docket', 
+        icon: GavelIcon,
+        allowedRoles: ['Sędzia', 'SEDZIA', 'Sędzina', 'Sedzia'] 
+    },
+
+    // --- DLA SEKRETARIATU ---
+    { 
+        text: 'Rejestracja Sprawy', 
+        path: '/create-case', 
+        icon: AddCircleOutlineIcon, 
+        allowedRoles: ['Sekretariat', 'SEKRETARIAT', 'ADMIN', 'Admin', 'Asystent sędziego', 'asystent sedziego'] 
+    },
+
+    // --- DLA ADMINA ---
+    {
+        text: 'Zarządzanie Użytkownikami',
+        path: '/admin/users',
+        icon: SecurityIcon,
+        allowedRoles: ['ADMIN', 'Admin'],
+        external: false 
+    },
+    
+    {
+        text: 'Administracja Sprawami',
+        path: '/admin/cases',
+        icon: FolderSharedIcon,
+        allowedRoles: ['ADMIN', 'Admin'],
+        external: false 
+    },
   ];
 
   const secondaryMenuItems = [
@@ -49,13 +110,22 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
   const isActive = (path) => location.pathname === path;
 
   const renderMenuItems = (items) => {
-    return items.map(({ text, path, icon: IconComponent, badge }) => {
-      const active = isActive(path);
-      return (
+    return items
+      .filter(item => {
+        if (!item.allowedRoles) return true;
+        return item.allowedRoles.includes(userRole);
+      })
+      .map(({ text, path, icon: IconComponent, badge, external }) => {
+        const active = isActive(path);
+        
+        const linkProps = external 
+            ? { component: 'a', href: path, target: '_blank' }
+            : { component: Link, to: path };
+
+        return (
         <ListItem key={text} disablePadding>
           <ListItemButton
-            component={Link}
-            to={path}
+            {...linkProps}
             sx={{
               mx: 1,
               mb: 0.5,
@@ -174,7 +244,6 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
       </Toolbar>
 
       <List sx={{ px: 1, pt: 2 }}>
-        {/* Main Menu */}
         <Box>
           <Typography
             variant="caption"
@@ -201,7 +270,6 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
           }}
         />
 
-        {/* Secondary Menu */}
         <Box>
           <Typography
             variant="caption"
@@ -222,7 +290,6 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
         </Box>
       </List>
 
-      {/* Footer */}
       <Box
         sx={{
           mt: 'auto',
@@ -235,27 +302,26 @@ const Sidebar = ({ unreadMessagesCount = 0 }) => {
       >
         <Chip
           icon={<NotificationsIcon />}
-          label="Nowości"
+          label={`Zalogowany jako: ${userRole || 'Gość'}`} 
           variant="outlined"
           size="small"
           sx={{
             borderColor: theme.palette.divider,
             color: theme.palette.text.secondary,
             '&:hover': {
-              borderColor: theme.palette.primary.main,
-              backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
-            },
+                borderColor: theme.palette.primary.main,
+            }
           }}
         />
         <Typography
-          variant="caption"
-          sx={{
+            variant="caption"
+            sx={{
             color: theme.palette.text.disabled,
             textAlign: 'center',
             fontSize: '0.75rem',
-          }}
+            }}
         >
-          Wersja 1.0.0
+            Wersja 1.0.0
         </Typography>
       </Box>
     </Drawer>
