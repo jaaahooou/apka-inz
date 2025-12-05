@@ -4,9 +4,9 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Baza danych
-# db.sqlite3
-# *.sqlite3
+# Baza danych (Tego nie wysyłamy!)
+db.sqlite3
+*.sqlite3
 
 # Zmienne środowiskowe i wirtualne środowisko
 .env
