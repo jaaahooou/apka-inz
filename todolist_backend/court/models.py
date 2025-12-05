@@ -13,38 +13,28 @@ class Role(models.Model):
         return self.name
 
 class User(AbstractUser):
+    # AbstractUser już ma: username, password, email, first_name, last_name
+    # Dodajesz tylko dodatkowe pola:
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     phone = models.CharField(max_length=50)
     status = models.CharField(max_length=100)
+    # created_at - możesz użyć date_joined z AbstractUser lub dodać własne
     
     def __str__(self):
         return f'{self.first_name} {self.last_name}'
-
 class Case(models.Model):
     case_number = models.CharField(max_length=100, unique=True)
     title = models.CharField(max_length=200)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField()
     status = models.CharField(max_length=100)
     creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    assigned_judge = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_cases')
     created_at = models.DateTimeField(auto_now_add=True)
 
-    filing_date = models.DateField(null=True, blank=True)
-    category = models.CharField(max_length=100, default='Cywilna')
-    value_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     def __str__(self):
         return self.title
 
-class CaseParty(models.Model):
-    case = models.ForeignKey(Case, related_name='parties', on_delete=models.CASCADE)
-    name = models.CharField(max_length=200) 
-    role = models.CharField(max_length=100)
-    created_at = models.DateTimeField(auto_now_add=True) 
-    
-    def __str__(self):
-        return f"{self.role}: {self.name}"
-
 class Hearing(models.Model):
+    # Definiuj dostępne statusy
     STATUS_CHOICES = [
         ('zaplanowana', 'Zaplanowana'),
         ('odbyta', 'Odbyta'),
@@ -70,7 +60,7 @@ class Document(models.Model):
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='documents')
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    file_size = models.IntegerField(blank=True, null=True)
+    file_size = models.IntegerField(blank=True, null=True)  # w bajtach
     
     def __str__(self):
         return self.title
@@ -91,18 +81,19 @@ class Notification(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
-    title = models.CharField(max_length=200, default='Powiadomienie')
+    title = models.CharField(max_length=200, default='Powiadomienie')  # Krótki tytuł
     message = models.TextField()
     notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPE_CHOICES, default='message')
     is_read = models.BooleanField(default=False)
     case = models.ForeignKey(Case, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
-    hearing = models.ForeignKey(Hearing, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
-    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
-    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')
+    hearing = models.ForeignKey(Hearing, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')  # Link do rozprawy
+    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')  # Link do dokumentu
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')  # Kto wysłał
     sent_at = models.DateTimeField(auto_now_add=True)
-    read_at = models.DateTimeField(null=True, blank=True) 
+    read_at = models.DateTimeField(null=True, blank=True)  # Kiedy przeczytano
+    
     class Meta:
-        ordering = ['-sent_at']
+        ordering = ['-sent_at']  # Najnowsze powiadomienia na górze
         indexes = [
             models.Index(fields=['user', '-sent_at']),
             models.Index(fields=['is_read']),
@@ -133,15 +124,15 @@ class CaseParticipant(models.Model):
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='participants')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='case_participations')
     role_in_case = models.CharField(max_length=50, choices=PARTICIPANT_TYPE_CHOICES)
-    description = models.TextField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    joined_at = models.DateTimeField(auto_now_add=True)
-    left_at = models.DateTimeField(null=True, blank=True)
-    contact_email = models.EmailField(blank=True, null=True)
-    contact_phone = models.CharField(max_length=50, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)  # Szczegółowy opis roli
+    is_active = models.BooleanField(default=True)  # Czy uczestnik jest aktywny
+    joined_at = models.DateTimeField(auto_now_add=True)  # Kiedy dołączył
+    left_at = models.DateTimeField(null=True, blank=True)  # Kiedy odszedł (jeśli dotyczy)
+    contact_email = models.EmailField(blank=True, null=True)  # Dodatkowy email do kontaktu
+    contact_phone = models.CharField(max_length=50, blank=True, null=True)  # Dodatkowy telefon
     
     class Meta:
-        unique_together = ('case', 'user')
+        unique_together = ('case', 'user')  # Każdy użytkownik może mieć tylko jedną rolę w sprawie
         ordering = ['joined_at']
         indexes = [
             models.Index(fields=['case', 'role_in_case']),
@@ -176,12 +167,12 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
     object_type = models.CharField(max_length=100, choices=OBJECT_TYPE_CHOICES)
     object_id = models.IntegerField(null=True, blank=True)
-    object_name = models.CharField(max_length=200, blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-    old_value = models.TextField(blank=True, null=True)
-    new_value = models.TextField(blank=True, null=True)
+    object_name = models.CharField(max_length=200, blank=True, null=True)  # Nazwa obiektu dla łatwości
+    description = models.TextField(blank=True, null=True)  # Szczegółowy opis
+    old_value = models.TextField(blank=True, null=True)  # Stara wartość (dla UPDATE)
+    new_value = models.TextField(blank=True, null=True)  # Nowa wartość (dla UPDATE)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)  # Info o przeglądarce
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     
     class Meta:
@@ -210,6 +201,7 @@ class ChatRoom(models.Model):
     name = models.CharField(max_length=255, blank=True, default='')
     is_direct = models.BooleanField(default=False)
 
+    # Dla DM: dwóch uczestników (unordered pair; canonical order wymuszony w clean)
     user_a = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True, blank=True,
@@ -223,6 +215,7 @@ class ChatRoom(models.Model):
         related_name='dm_as_b'
     )
 
+    # Dla grup (opcjonalnie na przyszłość)
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -246,9 +239,11 @@ class ChatRoom(models.Model):
                 raise ValidationError('DM wymaga pól user_a i user_b.')
             if self.user_a_id == self.user_b_id:
                 raise ValidationError('Nie można utworzyć DM z samym sobą.')
+            # Uporządkowanie deterministyczne pary
             if self.user_a_id and self.user_b_id and self.user_a_id > self.user_b_id:
                 self.user_a, self.user_b = self.user_b, self.user_a
         else:
+            # Dla pokojów grupowych pola user_a/user_b nie powinny być ustawione
             if self.user_a or self.user_b:
                 raise ValidationError('Pola user_a/user_b są dozwolone tylko dla is_direct=True.')
 
@@ -263,13 +258,14 @@ class ChatRoom(models.Model):
 
 
 class Message(models.Model):
+    # ✅ DODAJ recipient FIELD!
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     recipient = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
         related_name='received_messages', 
-        null=True,
-        blank=True
+        null=True,  # Null dla wiadomości w pokojach
+        blank=True  # Optional
     )
     room = models.ForeignKey(
         ChatRoom, 
