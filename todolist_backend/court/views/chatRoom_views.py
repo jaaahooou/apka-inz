@@ -6,6 +6,9 @@ from court.models import Message, ChatRoom
 from court.serializers import MessageSerializer, ChatRoomSerializer
 from court.models import User
 from django.db.models import Q
+# Import do obsługi WebSocket z poziomu widoku (Hybrid approach)
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 @api_view(['GET'])
@@ -78,13 +81,16 @@ def room_messages(request, pk):
         data = request.data.copy()
         data['room'] = pk
         data['sender'] = request.user.id
+
+      # Jeśli przesyłany jest plik, będzie w request.FILES, serializer obsłuży to, jeśli przekażemy data
+      # Uwaga: przy FileUpload w Django, request.data zawiera też request.POST
         
         serializer = MessageSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            message = serializer.save(attachment=request.FILES.get('attachment'))
+            # Opcjonalnie: Tutaj też można dodać powiadomienie WebSocket dla pokoi grupowych
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes([IsAuthenticated])
@@ -135,7 +141,7 @@ def mark_as_read(request, pk):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def private_messages(request):
-    """Pobierz wszystkie wiadomości prywatne lub wyślij nową"""
+    """Pobierz wszystkie wiadomości prywatne lub wyślij nową (Hybrid REST + WebSocket)"""
     
     if request.method == 'GET':
         # Pobierz recipient_id z query params
@@ -162,44 +168,59 @@ def private_messages(request):
             room__isnull=True  # Tylko wiadomości prywatne, nie z pokojów
         ).order_by('created_at')
         
-        serializer = MessageSerializer(messages, many=True)
+        # Przekazujemy context={'request': request}, aby FileField generował pełne URLe
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
     
     elif request.method == 'POST':
+        # --- ZMIANY DLA ZAŁĄCZNIKÓW ---
         recipient_id = request.data.get('recipient_id')
-        content = request.data.get('content')
+        content = request.data.get('content', '') # Może być pusty, jeśli jest załącznik
+        attachment = request.FILES.get('attachment') # Pobierz plik
         
-        if not recipient_id or not content:
-            return Response(
-                {'error': 'Podaj recipient_id i content'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if not recipient_id:
+            return Response({'error': 'Podaj recipient_id'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not content and not attachment:
+             return Response({'error': 'Wiadomość musi zawierać treść lub załącznik'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             recipient = User.objects.get(id=recipient_id)
         except User.DoesNotExist:
-            return Response(
-                {'error': 'Użytkownik nie istnieje'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Użytkownik nie istnieje'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Nie pozwalaj wysyłać wiadomości do siebie
         if recipient == request.user:
-            return Response(
-                {'error': 'Nie możesz wysłać wiadomości do siebie'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Nie możesz wysłać wiadomości do siebie'}, status=status.HTTP_400_BAD_REQUEST)
         
+        
+        # Tworzenie wiadomości w bazie
         message = Message.objects.create(
             sender=request.user,
             recipient=recipient,
             content=content,
-            room=None  # Brak pokoju = wiadomość prywatna
+            attachment=attachment,
+            room=None
         )
         
-        serializer = MessageSerializer(message)
+        # Serializacja (potrzebujemy context dla URL pliku)
+        serializer = MessageSerializer(message, context={'request': request})
+        
+        # --- WEBSOCKET TRIGGER ---
+        # Po zapisaniu w REST API, wysyłamy powiadomienie do kanału WebSocket
+        # Nazwa grupy musi być identyczna jak w consumers.py: chat_{id1}_{id2} (posortowane)
+        channel_layer = get_channel_layer()
+        ids = sorted([request.user.id, recipient.id])
+        room_group_name = f"chat_{ids[0]}_{ids[1]}"
+        
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,
+            {
+                'type': 'chat_message_event', # To musi pasować do metody w consumers.py
+                'message': serializer.data
+            }
+        )
+        
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

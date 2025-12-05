@@ -89,12 +89,8 @@ WSGI_APPLICATION = 'todolist_backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'db_xander328',
-        'USER': 'xander328',
-        'PASSWORD': '5F88_7aa5c4',
-        'HOST': 'psql01.mikr.us',
-        'PORT': '5432',  
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 

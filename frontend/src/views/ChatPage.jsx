@@ -17,6 +17,7 @@ const ChatView = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
+  const [attachment, setAttachment] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -24,18 +25,13 @@ const ChatView = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserUsername, setCurrentUserUsername] = useState('');
 
-  // Konstrukcja URL dla WebSocket
-  // Tworzymy unikalny, posortowany ID pokoju, aby obie strony miały ten sam
   const roomName = currentUserId && selectedUser
     ? [currentUserId, selectedUser.id].sort().join('_')
     : null;
   const wsUrl = roomName ? `ws://localhost:8000/ws/chat/${roomName}/` : null;
 
-  // Hook WebSocket do odbierania wiadomości
   useWebSocket(wsUrl, (data) => {
     if (data.type === 'chat_message' && data.message) {
-      // Dodaj wiadomość tylko wtedy, gdy nie jest to nasza własna wiadomość (już dodana optymistycznie)
-      // Sprawdzamy po ID, jeśli jest tymczasowe, to wiadomość jest nasza
       setMessages((prevMessages) => {
         if (prevMessages.some(msg => msg.id === data.message.id)) {
           return prevMessages;
@@ -44,11 +40,7 @@ const ChatView = () => {
       });
     }
   });
-  
-  // Hook do wysyłania wiadomości
-  const { send: sendWS } = useWebSocket(wsUrl, null);
 
-  // Pobieranie ID i nazwy bieżącego użytkownika
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -56,13 +48,12 @@ const ChatView = () => {
         setCurrentUserId(response.data.id);
         setCurrentUserUsername(response.data.username);
       } catch (err) {
-        console.error('Błąd podczas pobierania danych bieżącego użytkownika:', err);
+        console.error('Err fetch user', err);
       }
     };
     fetchCurrentUser();
   }, []);
 
-  // Pobieranie historii wiadomości po wybraniu użytkownika
   useEffect(() => {
     if (selectedUser) {
       const fetchMessages = async (userId) => {
@@ -77,44 +68,62 @@ const ChatView = () => {
         }
       };
       fetchMessages(selectedUser.id);
+      setMessageText('');
+      setAttachment(null);
     }
   }, [selectedUser]);
 
-  // Funkcja do wysyłania wiadomości
-  const sendMessage = () => {
-    if (!messageText.trim() || !selectedUser) return;
+  const sendMessage = async () => {
+    if ((!messageText.trim() && !attachment) || !selectedUser) return;
 
-    // Krok 1: Stwórz tymczasowy obiekt wiadomości do natychmiastowego wyświetlenia
+    const tempId = `temp-${Date.now()}`;
+    
+    // ✅ 1. Optymistyczna aktualizacja z TYPEM pliku
     const optimisticMessage = {
-      id: `temp-${Date.now()}`, // Tymczasowe ID
+      id: tempId,
       sender: currentUserId,
       sender_id: currentUserId,
       sender_username: currentUserUsername,
       recipient: selectedUser.id,
       recipient_username: selectedUser.username,
       content: messageText,
+      // URL lokalny do podglądu
+      attachment_url: attachment ? URL.createObjectURL(attachment) : null,
+      // WAŻNE: Przekazujemy typ, żeby ChatMessage wiedział czy to PDF czy obrazek
+      attachment_type: attachment ? attachment.type : null, 
       created_at: new Date().toISOString(),
       is_read: false,
     };
 
-    // Krok 2: Dodaj wiadomość do stanu (Optymistyczna aktualizacja)
-    setMessages((prevMessages) => [...prevMessages, optimisticMessage]);
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setSendingMessage(true);
 
-    // Krok 3: Wyślij wiadomość przez WebSocket do serwera
-    sendWS({
-      type: 'chat_message',
-      recipient_id: selectedUser.id,
-      content: messageText,
-    });
+    try {
+      const formData = new FormData();
+      formData.append('recipient_id', selectedUser.id);
+      formData.append('content', messageText);
+      if (attachment) {
+        formData.append('attachment', attachment);
+      }
 
-    // Krok 4: Wyczyść pole do wpisywania
-    setMessageText('');
-  };
+      const response = await API.post('/court/messages/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+      setMessages((prev) => 
+        prev.map(msg => msg.id === tempId ? response.data : msg)
+      );
+
+    } catch (err) {
+      console.error('Błąd wysyłania:', err);
+      setError('Nie udało się wysłać wiadomości');
+      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
+    } finally {
+      setSendingMessage(false);
+      setMessageText('');
+      setAttachment(null);
     }
   };
 
@@ -147,8 +156,9 @@ const ChatView = () => {
               messageText={messageText}
               onMessageChange={setMessageText}
               onSendMessage={sendMessage}
-              onKeyPress={handleKeyPress}
               loading={sendingMessage}
+              attachment={attachment}
+              onAttachmentChange={setAttachment}
             />
           </>
         ) : (
