@@ -32,6 +32,7 @@ useEffect(() => {
     }
   };
 
+  
   if (user) {
     fetchUserData();
   }
