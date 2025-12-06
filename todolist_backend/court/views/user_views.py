@@ -95,3 +95,29 @@ def user_delete(request, pk):
         {"message": "Użytkownik został pomyślnie usunięty"},
         status=status.HTTP_204_NO_CONTENT
     )
+
+# Zwraca dane użytkownika
+@api_view(['GET'])
+def user_profile(request):
+
+    if not request.user.is_authenticated:
+        return Response(
+            {"error": "Użytkownik nie jest zalogowany"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
+    user = request.user
+    
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'phone': getattr(user, 'phone', None),
+        'date_joined': user.date_joined,
+        'last_login': user.last_login,
+        'is_active': user.is_active,
+        'is_staff': user.is_staff,
+        'role': user.role.name if hasattr(user, 'role') and user.role else None,
+    }, status=status.HTTP_200_OK)
