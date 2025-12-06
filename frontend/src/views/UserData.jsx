@@ -21,9 +21,7 @@ const UserData = () => {
 useEffect(() => {
   const fetchUserData = async () => {
     try {
-      // Użyj nowego endpointu
       const response = await API.get('/court/auth/profile/');
-      console.log('Dane z API:', response.data);
       setUserData(response.data);
       setError(null);
     } catch (err) {

@@ -6,7 +6,7 @@ urlpatterns = [
   
     # ========== BIEŻĄCY UŻYTKOWNIK ==========
     path('auth/me/', chatRoom_views.current_user, name='current-user'),
-     path('auth/profile/', user_views.user_profile, name='user-profile'),
+    path('auth/profile/', user_views.user_profile, name='user-profile'),
 
     # Role endpoints
     path('roles/', role_list_create, name='role-list-create'),

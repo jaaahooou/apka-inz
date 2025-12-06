@@ -84,7 +84,7 @@ const Dashboard = () => {
       message: 'Dodano nowego uczestnika do sprawy CASE-2025-008',
       time: '4h temu',
     },
-        {
+      {
       id: 5,
       type: 'participant',
       message: 'Dodano nowego uczestnika do sprawy test',
