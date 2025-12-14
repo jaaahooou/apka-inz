@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import User, Role, Case, CaseParty, Hearing, Document, Notification, CaseParticipant, AuditLog, Message, ChatRoom
 
-# 1. Konfiguracja Użytkownika
+
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     list_display = ('username', 'email', 'is_active', 'role', 'status')
@@ -9,12 +9,12 @@ class UserAdmin(admin.ModelAdmin):
     search_fields = ('username', 'email', 'last_name')
     list_editable = ('is_active',)
 
-# 2. Konfiguracja Ról
+
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     list_display = ('name', 'description')
 
-# --- 3. SPRAWY I STRONY POSTĘPOWANIA (NOWOŚĆ) ---
+
 
 class CasePartyInline(admin.TabularInline):
     model = CaseParty
@@ -32,7 +32,7 @@ class CasePartyAdmin(admin.ModelAdmin):
     list_display = ('name', 'role', 'case')
     search_fields = ('name', 'role')
 
-# --- 4. POZOSTAŁE MODELE ---
+
 
 @admin.register(Hearing)
 class HearingAdmin(admin.ModelAdmin):

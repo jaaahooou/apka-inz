@@ -1,6 +1,18 @@
 from court.models import AuditLog
 from django.utils import timezone
 import json
+from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.tokens import UntypedToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from jwt import decode as jwt_decode
+from django.conf import settings
+from urllib.parse import parse_qs
+
+User = get_user_model()
+
+# --- POMOCNICZE FUNKCJE ---
 
 def get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -10,8 +22,19 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
+@database_sync_to_async
+def get_user(validated_token):
+    try:
+        user = User.objects.get(id=validated_token["user_id"])
+        return user
+    except User.DoesNotExist:
+        return AnonymousUser()
+
+
+# --- MIDDLEWARE 1: LOGOWANIE AUDYTOWE (HTTP) ---
+
 class AuditLogMiddleware:
-    """Middleware do automatycznego logowania akcji"""
+    """Middleware do automatycznego logowania akcji HTTP"""
     
     def __init__(self, get_response):
         self.get_response = get_response
@@ -22,6 +45,7 @@ class AuditLogMiddleware:
             '/court/hearings/',
             '/court/users/',
             '/court/notifications/',
+            '/court/messages/', # Warto dodać logowanie wysyłania wiadomości
         ]
         # Nie loguj GET requesty (tylko CREATE, UPDATE, DELETE)
         self.logged_methods = ['POST', 'PUT', 'PATCH', 'DELETE']
@@ -57,8 +81,7 @@ class AuditLogMiddleware:
             action = action_map.get(method, 'UNKNOWN')
             
             # Wyciągnij typ obiektu z ścieżki
-            # /court/cases/1/update/ → 'Case'
-            path_parts = path.split('/')
+            path_parts = path.strip('/').split('/')
             object_type = self._extract_object_type(path_parts)
             
             # Wyciągnij ID obiektu
@@ -89,9 +112,10 @@ class AuditLogMiddleware:
             'hearings': 'Hearing',
             'users': 'User',
             'notifications': 'Notification',
+            'messages': 'Message',
         }
         
-        for i, part in enumerate(path_parts):
+        for part in path_parts:
             if part in type_map:
                 return type_map[part]
         
@@ -99,8 +123,44 @@ class AuditLogMiddleware:
     
     def _extract_object_id(self, path_parts):
         """Wyciągnij ID obiektu z ścieżki"""
-        # /court/cases/1/update/ → ID = 1
-        for i, part in enumerate(path_parts):
+        # np. court/cases/1/update/ -> ID = 1
+        for part in path_parts:
             if part.isdigit():
                 return int(part)
         return None
+
+
+# --- MIDDLEWARE 2: AUTORYZACJA WEBSOCKET (ASGI) ---
+
+class JwtAuthMiddleware:
+    """
+    Middleware do autoryzacji JWT w WebSocketach.
+    Szuka tokena w query string: ws://...?token=<token>
+    """
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        # Pobieramy query string z adresu URL
+        query_string = scope.get("query_string", b"").decode("utf-8")
+        query_params = parse_qs(query_string)
+        token = query_params.get("token", [None])[0]
+
+        if token:
+            try:
+                # Walidacja tokena (biblioteka simplejwt)
+                UntypedToken(token)
+                
+                # Dekodowanie ręczne, żeby wyciągnąć user_id
+                decoded_data = jwt_decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+                
+                # Pobranie użytkownika z bazy (asynchronicznie)
+                scope["user"] = await get_user(decoded_data)
+                
+            except (InvalidToken, TokenError, Exception) as e:
+                print(f"❌ Błąd autoryzacji WebSocket: {e}")
+                scope["user"] = AnonymousUser()
+        else:
+            scope["user"] = AnonymousUser()
+
+        return await self.inner(scope, receive, send)
