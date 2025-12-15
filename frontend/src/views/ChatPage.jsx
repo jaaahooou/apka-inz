@@ -1,5 +1,5 @@
-// src/views/ChatView.jsx
-import React, { useState, useEffect } from 'react';
+// src/views/ChatPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, useTheme } from '@mui/material';
 import API from '../api/axiosConfig';
 import useUsers from '../hooks/useUsers';
@@ -16,8 +16,6 @@ const ChatView = () => {
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState('');
-  const [attachment, setAttachment] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -25,22 +23,44 @@ const ChatView = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserUsername, setCurrentUserUsername] = useState('');
 
+  // Logika WebSocket: Sortowanie ID, aby pokój "1_2" był taki sam dla obu stron
   const roomName = currentUserId && selectedUser
-    ? [currentUserId, selectedUser.id].sort().join('_')
+    ? [currentUserId, selectedUser.id].sort((a, b) => a - b).join('_')
     : null;
+    
+  // URL WebSocket - BEZ TOKENA (token dodaje hook useWebSocket)
   const wsUrl = roomName ? `ws://localhost:8000/ws/chat/${roomName}/` : null;
 
-  useWebSocket(wsUrl, (data) => {
+  // Obsługa wiadomości przychodzących
+  // Używamy useCallback, aby funkcja była stabilna i nie powodowała restartów WebSocket
+  const handleIncomingMessage = useCallback((data) => {
     if (data.type === 'chat_message' && data.message) {
       setMessages((prevMessages) => {
+        // 1. Potwierdzenie wysłania (podmiana temp_id)
+        if (data.temp_id) {
+          const exists = prevMessages.some(msg => msg.id === data.temp_id);
+          if (exists) {
+            return prevMessages.map(msg => 
+              msg.id === data.temp_id ? data.message : msg
+            );
+          }
+        }
+
+        // 2. Deduplikacja (sprawdź po ID)
         if (prevMessages.some(msg => msg.id === data.message.id)) {
           return prevMessages;
         }
+
+        // 3. Nowa wiadomość
         return [...prevMessages, data.message];
       });
     }
-  });
+  }, []);
 
+  // Inicjalizacja WebSocket
+  const { send } = useWebSocket(wsUrl, handleIncomingMessage);
+
+  // Pobieranie danych zalogowanego użytkownika
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -54,6 +74,7 @@ const ChatView = () => {
     fetchCurrentUser();
   }, []);
 
+  // Pobieranie historii po wybraniu usera
   useEffect(() => {
     if (selectedUser) {
       const fetchMessages = async (userId) => {
@@ -68,62 +89,108 @@ const ChatView = () => {
         }
       };
       fetchMessages(selectedUser.id);
-      setMessageText('');
-      setAttachment(null);
     }
   }, [selectedUser]);
 
-  const sendMessage = async () => {
-    if ((!messageText.trim() && !attachment) || !selectedUser) return;
+  // Funkcja wysyłania
+  const sendMessage = async (content, attachments = []) => {
+    if (!selectedUser) return;
+    if (!content.trim() && attachments.length === 0) return;
 
-    const tempId = `temp-${Date.now()}`;
-    
-    // ✅ 1. Optymistyczna aktualizacja z TYPEM pliku
-    const optimisticMessage = {
-      id: tempId,
-      sender: currentUserId,
-      sender_id: currentUserId,
-      sender_username: currentUserUsername,
-      recipient: selectedUser.id,
-      recipient_username: selectedUser.username,
-      content: messageText,
-      // URL lokalny do podglądu
-      attachment_url: attachment ? URL.createObjectURL(attachment) : null,
-      // WAŻNE: Przekazujemy typ, żeby ChatMessage wiedział czy to PDF czy obrazek
-      attachment_type: attachment ? attachment.type : null, 
-      created_at: new Date().toISOString(),
-      is_read: false,
-    };
-
-    setMessages((prev) => [...prev, optimisticMessage]);
     setSendingMessage(true);
 
     try {
-      const formData = new FormData();
-      formData.append('recipient_id', selectedUser.id);
-      formData.append('content', messageText);
-      if (attachment) {
-        formData.append('attachment', attachment);
+      // SCENARIUSZ 1: Tekst -> WebSocket
+      if (attachments.length === 0 && content.trim()) {
+        const tempId = `temp-${Date.now()}`;
+        
+        // Optymistyczna aktualizacja UI
+        const optimisticMessage = {
+          id: tempId,
+          sender: currentUserId,
+          sender_id: currentUserId,
+          sender_username: currentUserUsername,
+          recipient: selectedUser.id,
+          recipient_username: selectedUser.username,
+          content: content,
+          attachment: null,
+          created_at: new Date().toISOString(),
+          is_read: false,
+        };
+        setMessages((prev) => [...prev, optimisticMessage]);
+
+        // Bezpieczne wywołanie send
+        if (send && typeof send === 'function') {
+            send({
+              type: 'chat_message',
+              recipient_id: selectedUser.id,
+              content: content,
+              temp_id: tempId 
+            });
+        } else {
+            console.error("⚠️ WebSocket nie jest gotowy.");
+            setError("Brak połączenia. Odśwież stronę.");
+        }
       }
+      
+      // SCENARIUSZ 2: Załączniki -> API
+      else if (attachments.length > 0) {
+          for (const file of attachments) {
+            // Generujemy tempId dla każdej wiadomości
+            const tempId = `temp-file-${Date.now()}-${Math.random()}`;
 
-      const response = await API.post('/court/messages/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+            // 1. Optymistyczna aktualizacja UI dla pliku
+            const optimisticFileMessage = {
+              id: tempId,
+              sender: currentUserId,
+              sender_id: currentUserId,
+              sender_username: currentUserUsername,
+              recipient: selectedUser.id,
+              recipient_username: selectedUser.username,
+              content: content || 'Przesłano plik',
+              attachment: file, // Obiekt File do podglądu
+              created_at: new Date().toISOString(),
+              is_read: false,
+              is_temp: true 
+            };
 
-      setMessages((prev) => 
-        prev.map(msg => msg.id === tempId ? response.data : msg)
-      );
+            setMessages((prev) => [...prev, optimisticFileMessage]);
+
+            const formData = new FormData();
+            formData.append('recipient_id', selectedUser.id);
+            formData.append('content', content || 'Przesłano plik'); 
+            formData.append('attachment', file);
+
+            const response = await API.post('/court/messages/', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            
+            // 2. Aktualizacja stanu po sukcesie API (z obsługą deduplikacji WebSocket)
+            setMessages((prev) => {
+              // Sprawdzamy, czy prawdziwa wiadomość (z response.data.id) już dotarła przez WebSocket
+              // w czasie gdy czekaliśmy na odpowiedź z API.
+              const realMessageAlreadyExists = prev.some(msg => msg.id === response.data.id);
+
+              if (realMessageAlreadyExists) {
+                // Jeśli tak, WebSocket był szybszy. Mamy już prawdziwą wiadomość na liście.
+                // Musimy tylko usunąć naszą "tymczasową" (optymistyczną) wersję, aby nie mieć duplikatu.
+                return prev.filter(msg => msg.id !== tempId);
+              } else {
+                // Jeśli nie, podmieniamy naszą tymczasową wiadomość na tę zwróconą przez serwer.
+                return prev.map(msg => 
+                  msg.id === tempId ? response.data : msg
+                );
+              }
+            });
+          }
+      }
 
     } catch (err) {
       console.error('Błąd wysyłania:', err);
       setError('Nie udało się wysłać wiadomości');
-      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      // Opcjonalnie: można tu usunąć optymistyczną wiadomość
     } finally {
       setSendingMessage(false);
-      setMessageText('');
-      setAttachment(null);
     }
   };
 
@@ -153,12 +220,8 @@ const ChatView = () => {
               selectedUser={selectedUser}
             />
             <ChatInput
-              messageText={messageText}
-              onMessageChange={setMessageText}
               onSendMessage={sendMessage}
               loading={sendingMessage}
-              attachment={attachment}
-              onAttachmentChange={setAttachment}
             />
           </>
         ) : (
