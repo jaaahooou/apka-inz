@@ -27,13 +27,15 @@ import {
     InputAdornment,
     TablePagination,
     TableSortLabel,
-    Snackbar
+    Snackbar,
+    Tooltip 
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import GavelIcon from '@mui/icons-material/Gavel';
 import SearchIcon from '@mui/icons-material/Search';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable'; 
 
 const AdminCasesPage = () => {
     const [cases, setCases] = useState([]);
@@ -41,7 +43,7 @@ const AdminCasesPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // Stan edycji
+    
     const [editOpen, setEditOpen] = useState(false);
     const [currentCase, setCurrentCase] = useState(null);
     const [editFormData, setEditFormData] = useState({
@@ -51,13 +53,23 @@ const AdminCasesPage = () => {
         assigned_judge: ''
     });
 
-    // Stan tabeli (Paginacja, Sortowanie, Szukanie)
+    
+    const [scheduleOpen, setScheduleOpen] = useState(false);
+    const [hearingData, setHearingData] = useState({
+        date_time: '',
+        location: '',
+        judge: '',
+        notes: ''
+    });
+
+    
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
     const [orderBy, setOrderBy] = useState('created_at');
     const [order, setOrder] = useState('desc');
 
+    
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -66,6 +78,7 @@ const AdminCasesPage = () => {
 
     const statuses = ['Oczekuje na przydział', 'W toku', 'Oczekuje na rozprawę', 'Zawieszona', 'Zamknięta'];
 
+    
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -80,6 +93,7 @@ const AdminCasesPage = () => {
             const allUsers = usersRes.data;
             const allRoles = rolesRes.data;
 
+            
             const judgeRoleIds = allRoles
                 .filter(r => ['Sędzia', 'SEDZIA', 'Sedzia', 'Sędzina'].includes(r.name))
                 .map(r => r.id);
@@ -103,7 +117,7 @@ const AdminCasesPage = () => {
         fetchData();
     }, []);
 
-    // 2. Obsługa tabeli (Sortowanie i Paginacja)
+    
     const handleRequestSort = (property) => {
         const isAsc = orderBy === property && order === 'asc';
         setOrder(isAsc ? 'desc' : 'asc');
@@ -119,7 +133,6 @@ const AdminCasesPage = () => {
         setPage(0);
     };
 
-    // Logika filtrowania i sortowania
     const filteredCases = cases.filter(c => 
         c.case_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,7 +140,6 @@ const AdminCasesPage = () => {
     );
 
     const sortedCases = filteredCases.sort((a, b) => {
-        // Obsługa sortowania dat
         if (orderBy === 'created_at') {
             const dateA = new Date(a.created_at);
             const dateB = new Date(b.created_at);
@@ -140,7 +152,7 @@ const AdminCasesPage = () => {
         }
     });
 
-    // 3. Edycja
+    
     const handleEditClick = (caseItem) => {
         setCurrentCase(caseItem);
         setEditFormData({
@@ -159,7 +171,46 @@ const AdminCasesPage = () => {
             fetchData();
             showSnackbar('Sprawa została zaktualizowana pomyślnie!', 'success');
         } catch (err) {
-            showSnackbar('Nie udało się zapisać zmian. Sprawdź poprawność danych.', 'error');
+            showSnackbar('Nie udało się zapisać zmian.', 'error');
+        }
+    };
+
+    
+    const handleScheduleClick = (caseItem) => {
+        setCurrentCase(caseItem);
+        setHearingData({
+            date_time: '',
+            location: '',
+            
+            judge: caseItem.assigned_judge || '', 
+            notes: ''
+        });
+        setScheduleOpen(true);
+    };
+
+    const handleSaveHearing = async () => {
+        if (!hearingData.date_time || !hearingData.location) {
+            showSnackbar('Data i sala są wymagane!', 'warning');
+            return;
+        }
+
+        try {
+            await API.post('/court/hearings/', {
+                case: currentCase.id,
+                ...hearingData
+            });
+            setScheduleOpen(false);
+            
+            
+            if (currentCase.status !== 'Oczekuje na rozprawę') {
+                await API.patch(`/court/cases/${currentCase.id}/`, { status: 'Oczekuje na rozprawę' });
+                fetchData(); 
+            }
+
+            showSnackbar('Rozprawa została zaplanowana. Wokanda zaktualizowana.', 'success');
+        } catch (err) {
+            console.error(err);
+            showSnackbar('Błąd podczas planowania rozprawy.', 'error');
         }
     };
 
@@ -178,10 +229,10 @@ const AdminCasesPage = () => {
     const getStatusColor = (status) => {
         switch(status) {
             case 'W toku': return 'primary';
-            case 'Zamknięta': return 'default'; // Szary
-            case 'Zawieszona': return 'error'; // Czerwony
-            case 'Oczekuje na przydział': return 'warning'; // Pomarańczowy
-            case 'Oczekuje na rozprawę': return 'info'; // Jasny niebieski
+            case 'Zamknięta': return 'default';
+            case 'Zawieszona': return 'error';
+            case 'Oczekuje na przydział': return 'warning';
+            case 'Oczekuje na rozprawę': return 'info';
             default: return 'default';
         }
     };
@@ -205,7 +256,6 @@ const AdminCasesPage = () => {
                     Administracja Sprawami
                 </Typography>
                 
-                {/* WYSZUKIWARKA */}
                 <TextField
                     placeholder="Szukaj (sygnatura, tytuł, sędzia)..."
                     size="small"
@@ -233,16 +283,14 @@ const AdminCasesPage = () => {
                                 <TableSortLabel active={orderBy === 'id'} direction={orderBy === 'id' ? order : 'asc'} onClick={() => handleRequestSort('id')}>ID</TableSortLabel>
                             </TableCell>
                             <TableCell sortDirection={orderBy === 'created_at' ? order : false}>
-                                <TableSortLabel active={orderBy === 'created_at'} direction={orderBy === 'created_at' ? order : 'asc'} onClick={() => handleRequestSort('created_at')}>Data Rejestracji</TableSortLabel>
+                                <TableSortLabel active={orderBy === 'created_at'} direction={orderBy === 'created_at' ? order : 'asc'} onClick={() => handleRequestSort('created_at')}>Utworzono</TableSortLabel>
                             </TableCell>
                             <TableCell sortDirection={orderBy === 'case_number' ? order : false}>
                                 <TableSortLabel active={orderBy === 'case_number'} direction={orderBy === 'case_number' ? order : 'asc'} onClick={() => handleRequestSort('case_number')}>Sygnatura</TableSortLabel>
                             </TableCell>
                             <TableCell>Tytuł</TableCell>
-                            <TableCell sortDirection={orderBy === 'status' ? order : false}>
-                                <TableSortLabel active={orderBy === 'status'} direction={orderBy === 'status' ? order : 'asc'} onClick={() => handleRequestSort('status')}>Status</TableSortLabel>
-                            </TableCell>
-                            <TableCell>Sędzia Referent</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Sędzia Ref.</TableCell>
                             <TableCell align="center">Akcje</TableCell>
                         </TableRow>
                     </TableHead>
@@ -265,7 +313,7 @@ const AdminCasesPage = () => {
                                         label={row.status} 
                                         size="small" 
                                         variant="outlined" 
-                                        color={getStatusColor(row.status)}
+                                        color={getStatusColor(row.status)} 
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -278,26 +326,33 @@ const AdminCasesPage = () => {
                                     )}
                                 </TableCell>
                                 <TableCell align="center">
-                                    <IconButton color="primary" onClick={() => handleEditClick(row)}>
-                                        <EditIcon />
-                                    </IconButton>
-                                    <IconButton color="error" onClick={() => handleDelete(row.id)}>
-                                        <DeleteIcon />
-                                    </IconButton>
+                                    <Tooltip title="Zaplanuj rozprawę">
+                                        <IconButton 
+                                            color="success" 
+                                            onClick={() => handleScheduleClick(row)}
+                                            sx={{ mr: 1 }}
+                                        >
+                                            <EventAvailableIcon />
+                                        </IconButton>
+                                    </Tooltip>
+
+                                    <Tooltip title="Edytuj sprawę">
+                                        <IconButton color="primary" onClick={() => handleEditClick(row)}>
+                                            <EditIcon />
+                                        </IconButton>
+                                    </Tooltip>
+
+                                    <Tooltip title="Usuń sprawę">
+                                        <IconButton color="error" onClick={() => handleDelete(row.id)}>
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {sortedCases.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                                    Brak wyników dla wpisanej frazy.
-                                </TableCell>
-                            </TableRow>
-                        )}
                     </TableBody>
                 </Table>
                 
-                {/* PAGINACJA */}
                 <TablePagination
                     rowsPerPageOptions={[5, 10, 25]}
                     component="div"
@@ -306,30 +361,27 @@ const AdminCasesPage = () => {
                     page={page}
                     onPageChange={handleChangePage}
                     onRowsPerPageChange={handleChangeRowsPerPage}
-                    labelRowsPerPage="Wierszy na stronę:"
+                    labelRowsPerPage="Wierszy:"
                 />
             </TableContainer>
 
-            {/* OKNO DIALOGOWE EDYCJI */}
+            {/* MODAL 1: EDYCJA SPRAWY */}
             <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Edycja Sprawy: {currentCase?.case_number}</DialogTitle>
                 <DialogContent sx={{ pt: 2 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
-                        
                         <TextField
                             label="Sygnatura Akt"
                             value={editFormData.case_number}
                             onChange={(e) => setEditFormData({ ...editFormData, case_number: e.target.value })}
                             fullWidth
                         />
-                        
                         <TextField
                             label="Tytuł Sprawy"
                             value={editFormData.title}
                             onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
                             fullWidth
                         />
-
                         <FormControl fullWidth>
                             <InputLabel>Status Sprawy</InputLabel>
                             <Select
@@ -340,7 +392,6 @@ const AdminCasesPage = () => {
                                 {statuses.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                             </Select>
                         </FormControl>
-
                         <FormControl fullWidth>
                             <InputLabel>Zmień Sędziego Referenta</InputLabel>
                             <Select
@@ -356,12 +407,80 @@ const AdminCasesPage = () => {
                                 ))}
                             </Select>
                         </FormControl>
-
                     </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setEditOpen(false)}>Anuluj</Button>
                     <Button onClick={handleSaveEdit} variant="contained" color="primary">Zapisz Zmiany</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* MODAL 2: PLANOWANIE ROZPRAWY  */}
+            <Dialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <EventAvailableIcon color="success" />
+                    Zaplanuj Rozprawę: {currentCase?.case_number}
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Ta akcja utworzy wydarzenie na wokandzie sędziego.
+                    </Alert>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+                        <TextField
+                            type="datetime-local"
+                            label="Data i Godzina"
+                            fullWidth
+                            InputLabelProps={{ shrink: true }}
+                            value={hearingData.date_time}
+                            onChange={(e) => setHearingData({ ...hearingData, date_time: e.target.value })}
+                            required
+                        />
+                        
+                        <TextField
+                            label="Sala Rozpraw / Lokalizacja"
+                            fullWidth
+                            placeholder="np. Sala 205"
+                            value={hearingData.location}
+                            onChange={(e) => setHearingData({ ...hearingData, location: e.target.value })}
+                            required
+                        />
+
+                        <FormControl fullWidth>
+                            <InputLabel>Sędzia Prowadzący (Wokanda)</InputLabel>
+                            <Select
+                                value={hearingData.judge}
+                                label="Sędzia Prowadzący (Wokanda)"
+                                onChange={(e) => setHearingData({ ...hearingData, judge: e.target.value })}
+                            >
+                                <MenuItem value=""><em>Wybierz sędziego...</em></MenuItem>
+                                {judges.map(j => (
+                                    <MenuItem key={j.id} value={j.id}>
+                                        {j.first_name} {j.last_name} ({j.username})
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <TextField
+                            label="Notatki / Uwagi"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={hearingData.notes}
+                            onChange={(e) => setHearingData({ ...hearingData, notes: e.target.value })}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setScheduleOpen(false)}>Anuluj</Button>
+                    <Button 
+                        onClick={handleSaveHearing} 
+                        variant="contained" 
+                        color="success"
+                        startIcon={<EventAvailableIcon />}
+                    >
+                        Zatwierdź Termin
+                    </Button>
                 </DialogActions>
             </Dialog>
 

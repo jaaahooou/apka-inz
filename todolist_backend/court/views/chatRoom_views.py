@@ -1,12 +1,13 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+# ✅ IMPORT PARSERÓW DO PLIKÓW
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from court.models import Message, ChatRoom
 from court.serializers import MessageSerializer, ChatRoomSerializer
 from court.models import User
 from django.db.models import Q
-# Import do obsługi WebSocket z poziomu widoku (Hybrid approach)
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -65,6 +66,8 @@ def chat_room_detail(request, pk):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
+# ✅ DODAJEMY OBSŁUGĘ PLIKÓW DLA POKOI TEŻ (na przyszłość)
+@parser_classes([MultiPartParser, FormParser, JSONParser]) 
 def room_messages(request, pk):
     """Pobierz wiadomości z pokoju lub wyślij nową"""
     try:
@@ -80,15 +83,12 @@ def room_messages(request, pk):
     elif request.method == 'POST':
         data = request.data.copy()
         data['room'] = pk
-        data['sender'] = request.user.id
-
-      # Jeśli przesyłany jest plik, będzie w request.FILES, serializer obsłuży to, jeśli przekażemy data
-      # Uwaga: przy FileUpload w Django, request.data zawiera też request.POST
         
-        serializer = MessageSerializer(data=data)
+        # Używamy serializera do walidacji i zapisu
+        serializer = MessageSerializer(data=data, context={'request': request})
         if serializer.is_valid():
-            message = serializer.save(attachment=request.FILES.get('attachment'))
-            # Opcjonalnie: Tutaj też można dodać powiadomienie WebSocket dla pokoi grupowych
+            # save() z argumentami nadpisuje pola, np. sender
+            serializer.save(sender=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -140,11 +140,12 @@ def mark_as_read(request, pk):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
+# ✅ KLUCZOWA ZMIANA: Obsługa multipart/form-data
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def private_messages(request):
     """Pobierz wszystkie wiadomości prywatne lub wyślij nową (Hybrid REST + WebSocket)"""
     
     if request.method == 'GET':
-        # Pobierz recipient_id z query params
         recipient_id = request.query_params.get('recipient_id')
         
         if not recipient_id:
@@ -161,101 +162,82 @@ def private_messages(request):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Pobierz wiadomości między dwoma użytkownikami (w obie strony)
         messages = Message.objects.filter(
             Q(sender=request.user, recipient=recipient) |
             Q(sender=recipient, recipient=request.user),
-            room__isnull=True  # Tylko wiadomości prywatne, nie z pokojów
+            room__isnull=True 
         ).order_by('created_at')
         
-        # Przekazujemy context={'request': request}, aby FileField generował pełne URLe
         serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
     
     elif request.method == 'POST':
-        # --- ZMIANY DLA ZAŁĄCZNIKÓW ---
-        recipient_id = request.data.get('recipient_id')
-        content = request.data.get('content', '') # Może być pusty, jeśli jest załącznik
-        attachment = request.FILES.get('attachment') # Pobierz plik
+        # Przygotowujemy dane (kopiujemy, bo request.data może być niemutowalne)
+        data = request.data.copy()
+        
+        # Frontend wysyła recipient_id, ale serializer zazwyczaj oczekuje pola `recipient` (FK)
+        if 'recipient_id' in data:
+            data['recipient'] = data['recipient_id']
+
+        # Walidacja danych wejściowych
+        recipient_id = data.get('recipient')
+        # Przy MultiPartParser pliki są w request.FILES, ale DRF merguje je do request.data
+        # więc serializer sobie z tym poradzi.
         
         if not recipient_id:
-            return Response({'error': 'Podaj recipient_id'}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({'error': 'Podaj recipient_id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Używamy serializera do walidacji i zapisu - to bezpieczniejsza i pewniejsza metoda
+        serializer = MessageSerializer(data=data, context={'request': request})
+        
+        if serializer.is_valid():
+            recipient = serializer.validated_data['recipient']
+            if recipient == request.user:
+                return Response({'error': 'Nie możesz wysłać wiadomości do siebie'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Zapisujemy wiadomość, wymuszając nadawcę (request.user)
+            # Serializer automatycznie obsłuży plik z 'attachment'
+            message = serializer.save(sender=request.user, room=None)
             
-        if not content and not attachment:
-             return Response({'error': 'Wiadomość musi zawierać treść lub załącznik'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            recipient = User.objects.get(id=recipient_id)
-        except User.DoesNotExist:
-            return Response({'error': 'Użytkownik nie istnieje'}, status=status.HTTP_404_NOT_FOUND)
-        
-        if recipient == request.user:
-            return Response({'error': 'Nie możesz wysłać wiadomości do siebie'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        
-        # Tworzenie wiadomości w bazie
-        message = Message.objects.create(
-            sender=request.user,
-            recipient=recipient,
-            content=content,
-            attachment=attachment,
-            room=None
-        )
-        
-        # Serializacja (potrzebujemy context dla URL pliku)
-        serializer = MessageSerializer(message, context={'request': request})
-        
-        # --- WEBSOCKET TRIGGER ---
-        # Po zapisaniu w REST API, wysyłamy powiadomienie do kanału WebSocket
-        # Nazwa grupy musi być identyczna jak w consumers.py: chat_{id1}_{id2} (posortowane)
-        channel_layer = get_channel_layer()
-        ids = sorted([request.user.id, recipient.id])
-        room_group_name = f"chat_{ids[0]}_{ids[1]}"
-        
-        async_to_sync(channel_layer.group_send)(
-            room_group_name,
-            {
-                'type': 'chat_message_event', # To musi pasować do metody w consumers.py
-                'message': serializer.data
-            }
-        )
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # WebSocket Trigger
+            channel_layer = get_channel_layer()
+            ids = sorted([request.user.id, recipient.id])
+            room_group_name = f"chat_{ids[0]}_{ids[1]}"
+            
+            # Używamy zserializowanych danych zwracanych przez serializer (już z URL-em pliku itp.)
+            async_to_sync(channel_layer.group_send)(
+                room_group_name,
+                {
+                    'type': 'chat_message_event',
+                    'message': serializer.data
+                }
+            )
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def private_message_detail(request, pk):
-    """Pobierz szczegóły wiadomości prywatnej"""
     try:
         message = Message.objects.get(pk=pk, room__isnull=True)
     except Message.DoesNotExist:
-        return Response(
-            {'error': 'Wiadomość nie istnieje'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'error': 'Wiadomość nie istnieje'}, status=status.HTTP_404_NOT_FOUND)
     
     serializer = MessageSerializer(message)
     return Response(serializer.data)
 
-
 @api_view(['DELETE', 'PUT'])
 @permission_classes([IsAuthenticated])
 def delete_private_message(request, pk):
-    """Usuń lub edytuj swoją wiadomość prywatną"""
     try:
         message = Message.objects.get(pk=pk, room__isnull=True)
     except Message.DoesNotExist:
-        return Response(
-            {'error': 'Wiadomość nie istnieje'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'error': 'Wiadomość nie istnieje'}, status=status.HTTP_404_NOT_FOUND)
     
-    # Sprawdź czy to Twoja wiadomość
     if message.sender != request.user:
-        return Response(
-            {'error': 'Nie możesz edytować/usunąć cudzej wiadomości'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        return Response({'error': 'Nie możesz edytować/usunąć cudzej wiadomości'}, status=status.HTTP_403_FORBIDDEN)
     
     if request.method == 'DELETE':
         message.delete()
@@ -268,25 +250,16 @@ def delete_private_message(request, pk):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def mark_private_message_as_read(request, pk):
-    """Oznacz wiadomość prywatną jako przeczytaną"""
     try:
         message = Message.objects.get(pk=pk, room__isnull=True)
     except Message.DoesNotExist:
-        return Response(
-            {'error': 'Wiadomość nie istnieje'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'error': 'Wiadomość nie istnieje'}, status=status.HTTP_404_NOT_FOUND)
     
-    # Tylko odbiorca może oznaczyć jako przeczytaną
     if message.recipient != request.user:
-        return Response(
-            {'error': 'Tylko odbiorca może oznaczyć wiadomość jako przeczytaną'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        return Response({'error': 'Tylko odbiorca może oznaczyć wiadomość jako przeczytaną'}, status=status.HTTP_403_FORBIDDEN)
     
     message.is_read = True
     message.save()
@@ -294,11 +267,9 @@ def mark_private_message_as_read(request, pk):
     serializer = MessageSerializer(message)
     return Response(serializer.data)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def unread_message_count(request):
-    """Pobierz liczbę nieprzeczytanych wiadomości"""
     unread_count = Message.objects.filter(
         recipient=request.user,
         is_read=False,
