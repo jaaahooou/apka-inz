@@ -13,19 +13,24 @@ API.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
       console.log('✅ JWT token dodany do żądania');
     } else {
-      console.warn('⚠️ Brak JWT tokenu');
+      console.warn('⚠️ Brak JWT tokenu'); // To ostrzeżenie jest normalne przy logowaniu
     }
     
     return config;
   },
   (error) => Promise.reject(error)
 );
+
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Sprawdzamy, czy żądanie dotyczyło logowania lub odświeżania tokena
+    // Jeśli tak, nie próbujemy odświeżać tokena ponownie, aby uniknąć pętli
+    const isAuthRequest = originalRequest.url.includes('/api/token/');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       
       try {
@@ -44,7 +49,11 @@ API.interceptors.response.use(
         const storage = localStorage.getItem('access_token') ? localStorage : sessionStorage;
         storage.setItem('access_token', access);
 
-        originalRequest.headers.Authorization = `Bearer ${access}`;
+        // Aktualizujemy nagłówek dla przyszłych zapytań instancji API
+        API.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+        // Aktualizujemy nagłówek dla powtarzanego zapytania
+        originalRequest.headers['Authorization'] = `Bearer ${access}`;
+        
         return API(originalRequest);
       } catch (refreshError) {
         console.error('❌ Refresh token failed - logging out');

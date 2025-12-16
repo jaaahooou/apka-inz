@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Box, useTheme, Paper, Typography } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, useTheme } from '@mui/material';
 import API from '../api/axiosConfig';
 import useUsers from '../hooks/useUsers'; 
 import useWebSocket from '../hooks/useWebSocket';
@@ -15,8 +15,6 @@ const ChatPage = () => {
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState('');
-  const [attachment, setAttachment] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -25,49 +23,49 @@ const ChatPage = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserUsername, setCurrentUserUsername] = useState('');
 
-  // 1. Pobierz ID zalogowanego użytkownika
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await API.get('/court/auth/me/');
-        setCurrentUserId(response.data.id);
-        setCurrentUserUsername(response.data.username);
-        console.log("👤 Zalogowany użytkownik:", response.data);
-      } catch (err) {
-        console.error('❌ Błąd pobierania danych użytkownika:', err);
-      }
-    };
-    fetchCurrentUser();
-  }, []);
-
-  // 2. Generowanie nazwy pokoju
+  // Logika WebSocket: Sortowanie ID, aby pokój "1_2" był taki sam dla obu stron
   const roomName = currentUserId && selectedUser
-    ? [currentUserId, selectedUser.id].sort((a, b) => a - b).join('_') 
+    ? [currentUserId, selectedUser.id].sort((a, b) => a - b).join('_')
     : null;
-
-  // Używamy localhost dla spójności z logami
+    
+  // URL WebSocket - BEZ TOKENA (token dodaje hook useWebSocket)
   const wsUrl = roomName ? `ws://localhost:8000/ws/chat/${roomName}/` : null;
 
-  // 3. Obsługa WebSocket
-  useWebSocket(wsUrl, (data) => {
+  // Obsługa wiadomości przychodzących
+  const handleIncomingMessage = useCallback((data) => {
     if (data.type === 'chat_message' && data.message) {
       console.log("📩 Nowa wiadomość z WS:", data.message);
       setMessages((prevMessages) => {
-        // Zapobieganie duplikatom (jeśli wiadomość przyszła z REST API wcześniej)
+        // Potwierdzenie wysłania (podmiana temp_id)
+        if (data.temp_id) {
+          const exists = prevMessages.some(msg => msg.id === data.temp_id);
+          if (exists) {
+            return prevMessages.map(msg => 
+              msg.id === data.temp_id ? data.message : msg
+            );
+          }
+        }
+
+        // Deduplikacja (sprawdź po ID)
         if (prevMessages.some(msg => msg.id === data.message.id)) {
           return prevMessages.map(msg => msg.id === data.message.id ? data.message : msg);
         }
+
+        // Nowa wiadomość
         return [...prevMessages, data.message];
       });
     }
-  });
+  }, []);
 
-  // Debugowanie stanu wiadomości
+  // Inicjalizacja WebSocket
+  const { send } = useWebSocket(wsUrl, handleIncomingMessage);
+
+  // Pobieranie danych zalogowanego użytkownika
   useEffect(() => {
     console.log(`📊 Aktualna liczba wiadomości w stanie: ${messages.length}`, messages);
   }, [messages]);
 
-  // 4. Pobieranie historii wiadomości
+  // Pobieranie historii po wybraniu usera
   useEffect(() => {
     if (selectedUser) {
       const fetchMessages = async (userId) => {
@@ -85,65 +83,100 @@ const ChatPage = () => {
         }
       };
       fetchMessages(selectedUser.id);
-      setMessageText('');
-      setAttachment(null);
     }
   }, [selectedUser]);
 
-  // 5. Wysyłanie wiadomości
-  const sendMessage = async () => {
-    if ((!messageText.trim() && !attachment) || !selectedUser) return;
+  // Funkcja wysyłania
+  const sendMessage = async (content, attachments = []) => {
+    if (!selectedUser) return;
+    if (!content.trim() && attachments.length === 0) return;
 
-    const tempId = `temp-${Date.now()}`;
-    
-    // Optymistyczna wiadomość (pokazujemy od razu)
-    const optimisticMessage = {
-      id: tempId,
-      sender: currentUserId,
-      sender_id: currentUserId,
-      sender_username: currentUserUsername,
-      recipient: selectedUser.id,
-      recipient_username: selectedUser.username,
-      content: messageText,
-      attachment: attachment ? URL.createObjectURL(attachment) : null,
-      is_attachment: !!attachment,
-      created_at: new Date().toISOString(),
-      is_read: false,
-    };
-
-    console.log("📤 Wysyłanie (optymistyczne):", optimisticMessage);
-    setMessages((prev) => [...prev, optimisticMessage]);
     setSendingMessage(true);
 
     try {
-      const formData = new FormData();
-      formData.append('recipient_id', selectedUser.id);
-      formData.append('content', messageText);
-      
-      if (attachment) {
-        formData.append('attachment', attachment);
+      // Tekst
+      if (attachments.length === 0 && content.trim()) {
+        const tempId = `temp-${Date.now()}`;
+        
+        // Optymistyczna aktualizacja UI
+        const optimisticMessage = {
+          id: tempId,
+          sender: currentUserId,
+          sender_id: currentUserId,
+          sender_username: currentUserUsername,
+          recipient: selectedUser.id,
+          recipient_username: selectedUser.username,
+          content: content,
+          attachment: null,
+          created_at: new Date().toISOString(),
+          is_read: false,
+        };
+        setMessages((prev) => [...prev, optimisticMessage]);
+
+        // Wywołanie send
+        if (send && typeof send === 'function') {
+            send({
+              type: 'chat_message',
+              recipient_id: selectedUser.id,
+              content: content,
+              temp_id: tempId 
+            });
+        } else {
+            console.error("⚠️ WebSocket nie jest gotowy.");
+            setError("Brak połączenia. Odśwież stronę.");
+        }
       }
+      
+      // Załączniki
+      else if (attachments.length > 0) {
+          for (const file of attachments) {
+            // TempId dla każdej wiadomości
+            const tempId = `temp-file-${Date.now()}-${Math.random()}`;
 
-      const response = await API.post('/court/messages/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+            const optimisticFileMessage = {
+              id: tempId,
+              sender: currentUserId,
+              sender_id: currentUserId,
+              sender_username: currentUserUsername,
+              recipient: selectedUser.id,
+              recipient_username: selectedUser.username,
+              content: content || 'Przesłano plik',
+              attachment: file, 
+              created_at: new Date().toISOString(),
+              is_read: false,
+              is_temp: true 
+            };
 
-      console.log("✅ Wysłano pomyślnie (API response):", response.data);
+            setMessages((prev) => [...prev, optimisticFileMessage]);
 
-      setMessages((prev) => 
-        prev.map(msg => msg.id === tempId ? response.data : msg)
-      );
+            const formData = new FormData();
+            formData.append('recipient_id', selectedUser.id);
+            formData.append('content', content || 'Przesłano plik'); 
+            formData.append('attachment', file);
+
+            const response = await API.post('/court/messages/', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            
+            setMessages((prev) => {
+              const realMessageAlreadyExists = prev.some(msg => msg.id === response.data.id);
+
+              if (realMessageAlreadyExists) {
+                return prev.filter(msg => msg.id !== tempId);
+              } else {
+                return prev.map(msg => 
+                  msg.id === tempId ? response.data : msg
+                );
+              }
+            });
+          }
+      }
 
     } catch (err) {
       console.error('❌ Błąd wysyłania:', err);
       setError('Nie udało się wysłać wiadomości');
-      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
     } finally {
       setSendingMessage(false);
-      setMessageText('');
-      setAttachment(null);
     }
   };
 
@@ -168,7 +201,6 @@ const ChatPage = () => {
           <>
             <ChatHeader selectedUser={selectedUser} />
             
-            {/* Poprawiony kontener dla wiadomości - flex i hidden overflow */}
             <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <ChatMessages
                 messages={messages}
@@ -180,12 +212,8 @@ const ChatPage = () => {
             </Box>
 
             <ChatInput
-              messageText={messageText}
-              onMessageChange={setMessageText}
               onSendMessage={sendMessage}
               loading={sendingMessage}
-              attachment={attachment}
-              onAttachmentChange={setAttachment}
             />
           </>
         ) : (

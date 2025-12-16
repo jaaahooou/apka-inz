@@ -1,75 +1,85 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from "react";
 
-const useWebSocket = (url, onMessage) => {
-  const ws = useRef(null);
-  // Przechowujemy najnowszą wersję funkcji onMessage w refie,
-  // żeby jej zmiana nie powodowała restartu połączenia.
-  const onMessageRef = useRef(onMessage);
+export default function useWebSocket(baseUrl, onMessage) {
+  const socketRef = useRef(null);
 
-  useEffect(() => {
-    onMessageRef.current = onMessage;
-  }, [onMessage]);
-
-  useEffect(() => {
-    // 1. Walidacja URL
-    if (!url) {
-        return;
+  const connect = useCallback(() => {
+    if (!baseUrl) {
+      return;
     }
 
-    // 2. Pobieranie tokenu
-    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    if (socketRef.current && (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)) {
+      console.log("✅ Połączenie WebSocket jest już aktywne lub nawiązywane.");
+      return;
+    }
+
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     
     if (!token) {
-        console.warn("⚠️ Nie znaleziono tokenu dostępu. WebSocket nie może się połączyć.");
-        return;
+      console.warn("⚠️ Nie znaleziono tokenu dostępu (access_token) w storage.");
+      return;
     }
 
-    const wsUrlWithToken = `${url}?token=${token}`;
+    try {
+      const url = `${baseUrl}?token=${token}`;
+      console.log("🔌 Nawiązywanie połączenia z WebSocket:", url);
 
-    // 3. Inicjalizacja połączenia
-    const socket = new WebSocket(wsUrlWithToken);
-    ws.current = socket;
+      const ws = new WebSocket(url);
+      socketRef.current = ws;
 
-    socket.onopen = () => {
-      console.log('✅ WebSocket połączony:', url);
-    };
+      ws.onopen = () => {
+        console.log("✅ Połączenie WebSocket nawiązane");
+      };
 
-    socket.onmessage = (event) => {
-      // DEBUG: Logowanie surowych danych
-      console.log("📩 WebSocket wiadomość otrzymana:", event.data);
-      try {
-        const data = JSON.parse(event.data);
-        if (onMessageRef.current) {
-          onMessageRef.current(data);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          onMessage?.(data);
+        } catch (err) {
+          console.error("❌ Błąd parsowania wiadomości:", err);
         }
-      } catch (e) {
-        console.error("Błąd parsowania wiadomości WS:", e);
+      };
+
+      ws.onclose = (event) => {
+        if (event.code !== 1000) {
+            console.warn(`⚠️ Połączenie WebSocket zamknięte (Kod: ${event.code}):`, event.reason);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("❌ Błąd WebSocket:", error);
+      };
+      
+    } catch (err) {
+      console.error("❌ Nie udało się utworzyć obiektu WebSocket:", err);
+    }
+  }, [baseUrl, onMessage]);
+
+  const send = useCallback((message) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(message));
+    } else {
+      console.warn("⚠️ Połączenie WebSocket nie jest otwarte. Stan:", socketRef.current?.readyState);
+      if (!socketRef.current || socketRef.current.readyState === WebSocket.CLOSED) {
+          console.log("🔄 Próba ponownego połączenia...");
+          connect();
       }
-    };
+    }
+  }, [connect]);
 
-    socket.onerror = (error) => {
-         if (socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
-            console.error('❌ Błąd WebSocket:', error);
-         }
-    };
+  useEffect(() => {
+    connect();
 
-    socket.onclose = (event) => {
-        if (!event.wasClean) {
-             console.log('🔒 WebSocket rozłączony (nieczysto)', event.code);
-        } else {
-             console.log('🔒 WebSocket rozłączony');
-        }
-    };
-
-    // 4. Czyszczenie (Cleanup)
     return () => {
-      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-          socket.close();
+      if (socketRef.current) {
+        if (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING) {
+             console.log("🧹 Zamykanie połączenia WebSocket przy odmontowaniu/zmianie URL.");
+             socketRef.current.close();
+        }
+        socketRef.current = null;
       }
     };
-  }, [url]); 
+  }, [connect]);
 
-  return ws.current;
-};
-
-export default useWebSocket;
+  return { send };
+}

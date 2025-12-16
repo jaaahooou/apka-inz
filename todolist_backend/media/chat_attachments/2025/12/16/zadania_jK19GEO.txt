@@ -1,0 +1,7 @@
+Poprawa czatu (umożliwienie dodanie zalacznikow)
+Podlaczyc kalendarz -- 
+Role uzytkownikow (sędziowie/wozni/etc. zrobić podzial na role kto co widzi etc.)
+Wizualne bugi --
+Powiadomienia (event managment) -- 
+Panel admina + panel uzytkownika
+Zmienic koncept formularza rejestracji (poprzez panel admina, człowiek wysyla prosbe o "rejestracje", admin to akceptuje,	tedy dostaje się dostep)
