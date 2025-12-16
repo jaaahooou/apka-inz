@@ -1,8 +1,7 @@
-// src/views/ChatPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, useTheme } from '@mui/material';
 import API from '../api/axiosConfig';
-import useUsers from '../hooks/useUsers';
+import useUsers from '../hooks/useUsers'; 
 import useWebSocket from '../hooks/useWebSocket';
 import ChatUsersList from '../components/chatPage/ChatUsersList';
 import ChatHeader from '../components/chatPage/ChatHeader';
@@ -10,7 +9,7 @@ import ChatMessages from '../components/chatPage/ChatMessages';
 import ChatInput from '../components/chatPage/ChatInput';
 import ChatEmpty from '../components/chatPage/ChatEmpty';
 
-const ChatView = () => {
+const ChatPage = () => {
   const theme = useTheme();
   const { data: users, loading: usersLoading, error: usersError } = useUsers();
 
@@ -20,6 +19,7 @@ const ChatView = () => {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [error, setError] = useState(null);
+  
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserUsername, setCurrentUserUsername] = useState('');
 
@@ -32,11 +32,11 @@ const ChatView = () => {
   const wsUrl = roomName ? `ws://localhost:8000/ws/chat/${roomName}/` : null;
 
   // Obsługa wiadomości przychodzących
-  // Używamy useCallback, aby funkcja była stabilna i nie powodowała restartów WebSocket
   const handleIncomingMessage = useCallback((data) => {
     if (data.type === 'chat_message' && data.message) {
+      console.log("📩 Nowa wiadomość z WS:", data.message);
       setMessages((prevMessages) => {
-        // 1. Potwierdzenie wysłania (podmiana temp_id)
+        // Potwierdzenie wysłania (podmiana temp_id)
         if (data.temp_id) {
           const exists = prevMessages.some(msg => msg.id === data.temp_id);
           if (exists) {
@@ -46,12 +46,12 @@ const ChatView = () => {
           }
         }
 
-        // 2. Deduplikacja (sprawdź po ID)
+        // Deduplikacja (sprawdź po ID)
         if (prevMessages.some(msg => msg.id === data.message.id)) {
-          return prevMessages;
+          return prevMessages.map(msg => msg.id === data.message.id ? data.message : msg);
         }
 
-        // 3. Nowa wiadomość
+        // Nowa wiadomość
         return [...prevMessages, data.message];
       });
     }
@@ -62,17 +62,8 @@ const ChatView = () => {
 
   // Pobieranie danych zalogowanego użytkownika
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await API.get('/court/auth/me/');
-        setCurrentUserId(response.data.id);
-        setCurrentUserUsername(response.data.username);
-      } catch (err) {
-        console.error('Err fetch user', err);
-      }
-    };
-    fetchCurrentUser();
-  }, []);
+    console.log(`📊 Aktualna liczba wiadomości w stanie: ${messages.length}`, messages);
+  }, [messages]);
 
   // Pobieranie historii po wybraniu usera
   useEffect(() => {
@@ -80,9 +71,12 @@ const ChatView = () => {
       const fetchMessages = async (userId) => {
         try {
           setMessagesLoading(true);
+          console.log(`📥 Pobieranie wiadomości dla odbiorcy ID: ${userId}`);
           const response = await API.get(`/court/messages/?recipient_id=${userId}`);
+          console.log("📥 Pobrane wiadomości:", response.data);
           setMessages(response.data);
         } catch (err) {
+          console.error("❌ Błąd fetchMessages:", err);
           setError('Błąd przy pobieraniu wiadomości');
         } finally {
           setMessagesLoading(false);
@@ -100,7 +94,7 @@ const ChatView = () => {
     setSendingMessage(true);
 
     try {
-      // SCENARIUSZ 1: Tekst -> WebSocket
+      // Tekst
       if (attachments.length === 0 && content.trim()) {
         const tempId = `temp-${Date.now()}`;
         
@@ -119,7 +113,7 @@ const ChatView = () => {
         };
         setMessages((prev) => [...prev, optimisticMessage]);
 
-        // Bezpieczne wywołanie send
+        // Wywołanie send
         if (send && typeof send === 'function') {
             send({
               type: 'chat_message',
@@ -133,13 +127,12 @@ const ChatView = () => {
         }
       }
       
-      // SCENARIUSZ 2: Załączniki -> API
+      // Załączniki
       else if (attachments.length > 0) {
           for (const file of attachments) {
-            // Generujemy tempId dla każdej wiadomości
+            // TempId dla każdej wiadomości
             const tempId = `temp-file-${Date.now()}-${Math.random()}`;
 
-            // 1. Optymistyczna aktualizacja UI dla pliku
             const optimisticFileMessage = {
               id: tempId,
               sender: currentUserId,
@@ -148,7 +141,7 @@ const ChatView = () => {
               recipient: selectedUser.id,
               recipient_username: selectedUser.username,
               content: content || 'Przesłano plik',
-              attachment: file, // Obiekt File do podglądu
+              attachment: file, 
               created_at: new Date().toISOString(),
               is_read: false,
               is_temp: true 
@@ -165,18 +158,12 @@ const ChatView = () => {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             
-            // 2. Aktualizacja stanu po sukcesie API (z obsługą deduplikacji WebSocket)
             setMessages((prev) => {
-              // Sprawdzamy, czy prawdziwa wiadomość (z response.data.id) już dotarła przez WebSocket
-              // w czasie gdy czekaliśmy na odpowiedź z API.
               const realMessageAlreadyExists = prev.some(msg => msg.id === response.data.id);
 
               if (realMessageAlreadyExists) {
-                // Jeśli tak, WebSocket był szybszy. Mamy już prawdziwą wiadomość na liście.
-                // Musimy tylko usunąć naszą "tymczasową" (optymistyczną) wersję, aby nie mieć duplikatu.
                 return prev.filter(msg => msg.id !== tempId);
               } else {
-                // Jeśli nie, podmieniamy naszą tymczasową wiadomość na tę zwróconą przez serwer.
                 return prev.map(msg => 
                   msg.id === tempId ? response.data : msg
                 );
@@ -186,19 +173,20 @@ const ChatView = () => {
       }
 
     } catch (err) {
-      console.error('Błąd wysyłania:', err);
+      console.error('❌ Błąd wysyłania:', err);
       setError('Nie udało się wysłać wiadomości');
-      // Opcjonalnie: można tu usunąć optymistyczną wiadomość
     } finally {
       setSendingMessage(false);
     }
   };
 
-  const filteredUsers = users.filter(u => u.id !== currentUserId && 
-    (u.username || '').toLowerCase().includes(searchText.toLowerCase()));
+  const filteredUsers = users ? users.filter(u => 
+      u.id !== currentUserId && 
+      (u.username || '').toLowerCase().includes(searchText.toLowerCase())
+  ) : [];
 
   return (
-    <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', backgroundColor: theme.palette.background.default }}>
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 100px)', backgroundColor: theme.palette.background.default }}>
       <ChatUsersList
         users={filteredUsers}
         loading={usersLoading}
@@ -208,17 +196,21 @@ const ChatView = () => {
         selectedUserId={selectedUser?.id}
         onSelectUser={setSelectedUser}
       />
-      <Box sx={{ width: '70%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ width: '70%', display: 'flex', flexDirection: 'column', height: '100%' }}>
         {selectedUser ? (
           <>
             <ChatHeader selectedUser={selectedUser} />
-            <ChatMessages
-              messages={messages}
-              loading={messagesLoading}
-              error={error}
-              currentUserId={currentUserId}
-              selectedUser={selectedUser}
-            />
+            
+            <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <ChatMessages
+                messages={messages}
+                loading={messagesLoading}
+                error={error}
+                currentUserId={currentUserId}
+                selectedUser={selectedUser}
+                />
+            </Box>
+
             <ChatInput
               onSendMessage={sendMessage}
               loading={sendingMessage}
@@ -232,4 +224,4 @@ const ChatView = () => {
   );
 };
 
-export default ChatView;
+export default ChatPage;
