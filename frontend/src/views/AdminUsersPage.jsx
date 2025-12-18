@@ -28,7 +28,7 @@ const AdminUsersPage = () => {
     const [error, setError] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
 
-    
+    // 1. Pobieranie danych (Użytkowników ORAZ Ról)
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -54,7 +54,7 @@ const AdminUsersPage = () => {
         fetchData();
     }, []);
 
-    
+    // 2. Akceptacja użytkownika
     const handleToggleActive = async (userId, currentStatus) => {
         try {
             await API.patch(`/court/users/${userId}/update/`, {
@@ -73,7 +73,7 @@ const AdminUsersPage = () => {
         }
     };
 
-    
+    // 3. Zmiana Roli
     const handleChangeRole = async (userId, newRoleId) => {
         try {
             await API.patch(`/court/users/${userId}/update/`, {
