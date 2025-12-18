@@ -5,22 +5,30 @@ from django.contrib.auth import authenticate
 from .models import Role, User, Case, Document, Hearing, Notification, CaseParticipant, AuditLog, Message, ChatRoom, CaseParty
 
 # --- 1. LOGOWANIE I TOKENY ---
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         username = attrs.get("username")
         password = attrs.get("password")
 
+        # KROK 1: Sprawdźmy ręcznie, czy użytkownik w ogóle istnieje
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
+            # Jeśli nie ma takiego loginu -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
+        # KROK 2: Sprawdźmy hasło (niezależnie od tego czy aktywny)
         if not user.check_password(password):
+            # Jeśli złe hasło -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
+        # KROK 3: Skoro login i hasło są OK, to teraz sprawdzamy czy AKTYWNY
         if not user.is_active:
+            # Login/hasło super, ale konto zablokowane -> Specjalny błąd
             raise AuthenticationFailed("ACCOUNT_DISABLED")
 
+        # KROK 4: Jeśli wszystko OK, generujemy token
         return super().validate(attrs)
 
     @classmethod
@@ -29,6 +37,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['role'] = str(user.role) if user.role else ""
         token['username'] = user.username
         return token
+
+class PasswordResetSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({"password": "Podane hasła nie są identyczne."})
+        return data
 
 # --- 2. UŻYTKOWNIK I ROLE ---
 class RoleSerializer(serializers.ModelSerializer):
@@ -172,7 +191,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
     sender_id = serializers.IntegerField(source='sender.id', read_only=True) 
     recipient_username = serializers.CharField(source='recipient.username', read_only=True, allow_null=True)
-    attachment_url = serializers.SerializerMethodField() # Dodane pole URL dla załącznika
+    attachment_url = serializers.SerializerMethodField() 
 
     class Meta:
         model = Message
@@ -184,8 +203,8 @@ class MessageSerializer(serializers.ModelSerializer):
             'recipient', 
             'recipient_username',
             'content', 
-            'attachment',      # <-- Dodane pole do przesyłania
-            'attachment_url',  # <-- Dodane pole do odczytu
+            'attachment',      
+            'attachment_url',  
             'created_at', 
             'is_read',
             'room'
@@ -203,39 +222,3 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatRoom
         fields = ['id', 'name', 'created_at', 'messages']
-
-    class Meta:
-        model = ChatRoom
-        fields = ['id', 'name', 'created_at', 'messages']
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        username = attrs.get("username")
-        password = attrs.get("password")
-
-        # KROK 1: Sprawdźmy ręcznie, czy użytkownik w ogóle istnieje
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            # Jeśli nie ma takiego loginu -> Błąd danych
-            raise AuthenticationFailed("INVALID_CREDENTIALS")
-
-        # KROK 2: Sprawdźmy hasło (niezależnie od tego czy aktywny)
-        if not user.check_password(password):
-            # Jeśli złe hasło -> Błąd danych
-            raise AuthenticationFailed("INVALID_CREDENTIALS")
-
-        # KROK 3: Skoro login i hasło są OK, to teraz sprawdzamy czy AKTYWNY
-        if not user.is_active:
-            # Login/hasło super, ale konto zablokowane -> Specjalny błąd
-            raise AuthenticationFailed("ACCOUNT_DISABLED")
-
-        # KROK 4: Jeśli wszystko OK, generujemy token
-        return super().validate(attrs)
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token['role'] = str(user.role)
-        token['username'] = user.username
-        return token

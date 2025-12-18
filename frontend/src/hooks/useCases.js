@@ -9,8 +9,9 @@ const useCases = () => {
   const fetchCases = async () => {
     try {
       setLoading(true);
+      // PRZYWRÓCONO: /court/cases/
       const response = await API.get('/court/cases/');
-      // Dodaj liczby rozpraw i uczestników
+      
       const casesWithCounts = response.data.map((caseItem) => ({
         ...caseItem,
         hearings_count: caseItem.hearings?.length || 0,

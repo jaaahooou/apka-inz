@@ -10,6 +10,7 @@ const useUsers = () => {
     try {
       setLoading(true);
       setError(null);
+      // PRZYWRÓCONO: /court/users/
       const response = await API.get('/court/users/');
       setData(response.data);
     } catch (err) {
@@ -24,12 +25,10 @@ const useUsers = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // ✅ Funkcja do ręcznego odświeżenia
   const refetch = async () => {
     await fetchUsers();
   };
 
-  // ✅ Funkcja do aktualizacji pojedynczego użytkownika
   const updateUser = useCallback((updatedUser) => {
     setData((prevData) =>
       prevData.map((user) =>
@@ -38,12 +37,10 @@ const useUsers = () => {
     );
   }, []);
 
-  // ✅ Funkcja do dodania użytkownika
   const addUser = useCallback((newUser) => {
     setData((prevData) => [...prevData, newUser]);
   }, []);
 
-  // ✅ Funkcja do usunięcia użytkownika
   const removeUser = useCallback((userId) => {
     setData((prevData) => prevData.filter((user) => user.id !== userId));
   }, []);
