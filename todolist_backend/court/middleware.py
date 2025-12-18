@@ -1,4 +1,3 @@
-from court.models import AuditLog
 from django.utils import timezone
 import json
 from channels.db import database_sync_to_async
@@ -9,6 +8,10 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from jwt import decode as jwt_decode
 from django.conf import settings
 from urllib.parse import parse_qs
+
+# Importujemy model wewnątrz metod lub po sprawdzeniu gotowości aplikacji, 
+# ale w middleware zazwyczaj jest to bezpieczne, jeśli django.setup() był wywołany.
+# from court.models import AuditLog (zostawiamy import lokalny, aby uniknąć błędów startowych)
 
 User = get_user_model()
 
@@ -31,10 +34,10 @@ def get_user(validated_token):
             return AnonymousUser()
             
         user = User.objects.get(id=user_id)
-        print(f"✅ Znaleziono użytkownika w bazie: {user.username} (ID: {user.id})")
+        # print(f"✅ Znaleziono użytkownika: {user.username}")
         return user
     except User.DoesNotExist:
-        print(f"❌ Użytkownik o ID {validated_token.get('user_id')} nie istnieje w bazie danych.")
+        print(f"❌ Użytkownik o ID {validated_token.get('user_id')} nie istnieje.")
         return AnonymousUser()
     except Exception as e:
         print(f"❌ Błąd podczas pobierania użytkownika: {e}")
@@ -44,7 +47,7 @@ def get_user(validated_token):
 # --- MIDDLEWARE 1: LOGOWANIE AUDYTOWE (HTTP) ---
 
 class AuditLogMiddleware:
-    """Middleware do automatycznego logowania akcji HTTP"""
+    """Middleware do automatycznego logowania akcji HTTP do tabeli AuditLog"""
     
     def __init__(self, get_response):
         self.get_response = get_response
@@ -61,6 +64,7 @@ class AuditLogMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         
+        # Logujemy tylko zalogowanych użytkowników
         if not request.user.is_authenticated:
             return response
         
@@ -75,6 +79,9 @@ class AuditLogMiddleware:
             return response
         
         try:
+            # Importujemy model tutaj, gdy aplikacja jest już gotowa
+            from court.models import AuditLog
+
             action_map = {
                 'POST': 'CREATE',
                 'PUT': 'UPDATE',
@@ -84,6 +91,7 @@ class AuditLogMiddleware:
             
             action = action_map.get(method, 'UNKNOWN')
             path_parts = path.strip('/').split('/')
+            
             object_type = self._extract_object_type(path_parts)
             object_id = self._extract_object_id(path_parts)
             
@@ -97,7 +105,7 @@ class AuditLogMiddleware:
                 user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             )
         except Exception as e:
-            print(f"AuditLog error: {str(e)}")
+            # print(f"⚠️ AuditLog error: {str(e)}")
             pass
         
         return response
@@ -128,6 +136,7 @@ class AuditLogMiddleware:
 class JwtAuthMiddleware:
     """
     Middleware do autoryzacji JWT w WebSocketach.
+    Pobiera token z parametru ?token= w URL.
     """
     def __init__(self, inner):
         self.inner = inner
@@ -139,20 +148,18 @@ class JwtAuthMiddleware:
 
         if token:
             try:
-                # Walidacja i dekodowanie
-                UntypedToken(token)
+                # Dekodowanie tokena
+                # settings.SECRET_KEY musi być identyczne jak przy podpisywaniu
                 decoded_data = jwt_decode(token, settings.SECRET_KEY, algorithms=["HS256"])
                 
-                print(f"🕵️ Próba autoryzacji WebSocket dla tokena payload: {decoded_data}")
-                
-                # Pobranie użytkownika
+                # Pobranie użytkownika (asynchronicznie)
                 scope["user"] = await get_user(decoded_data)
                 
             except (InvalidToken, TokenError) as e:
                 print(f"❌ Token nieważny/błędny: {e}")
                 scope["user"] = AnonymousUser()
             except Exception as e:
-                print(f"❌ Inny błąd autoryzacji WebSocket: {e}")
+                print(f"❌ Błąd autoryzacji WebSocket: {e}")
                 scope["user"] = AnonymousUser()
         else:
             print("⚠️ Brak tokena w URL WebSocket")

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -34,6 +34,21 @@ const Login = () => {
   
   const [localError, setLocalError] = useState(null);
 
+  // --- NOWE: Ładowanie zapamiętanych danych przy starcie ---
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('saved_username');
+    const savedPassword = localStorage.getItem('saved_password');
+    const savedRemember = localStorage.getItem('saved_remember') === 'true';
+
+    if (savedRemember && savedUsername) {
+      setFormData({
+        username: savedUsername,
+        password: savedPassword || '', // Wypełniamy hasło jeśli istnieje
+        rememberMe: true
+      });
+    }
+  }, []);
+
   // --- STAN DLA MODALA RESETU HASŁA ---
   const [openReset, setOpenReset] = useState(false);
   const [resetData, setResetData] = useState({
@@ -62,6 +77,19 @@ const Login = () => {
     if (!formData.username.trim() || !formData.password.trim()) {
       setLocalError('Nazwa użytkownika i hasło są wymagane');
       return;
+    }
+
+    // --- NOWE: Obsługa zapisywania/usuwania danych formularza ---
+    if (formData.rememberMe) {
+      localStorage.setItem('saved_username', formData.username);
+      // UWAGA: Zapisywanie hasła w localStorage nie jest zalecane ze względów bezpieczeństwa,
+      // ale jest konieczne do realizacji funkcji "automatycznie wpisany w pola".
+      localStorage.setItem('saved_password', formData.password);
+      localStorage.setItem('saved_remember', 'true');
+    } else {
+      localStorage.removeItem('saved_username');
+      localStorage.removeItem('saved_password');
+      localStorage.removeItem('saved_remember');
     }
 
     const success = await handleLogin(
@@ -101,7 +129,6 @@ const Login = () => {
     setResetSuccess(null);
 
     try {
-        // ZMIANA: Pełna ścieżka z prefiksem /court/
         const response = await axios.post('/court/auth/reset-password/', {
             email: resetData.email,
             username: resetData.username,
