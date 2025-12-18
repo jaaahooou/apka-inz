@@ -8,6 +8,9 @@ urlpatterns = [
     path('auth/me/', chatRoom_views.current_user, name='current-user'),
     path('auth/profile/', user_views.user_profile, name='user-profile'),
 
+    # NOWA ŚCIEŻKA: Reset Hasła
+    path('auth/reset-password/', user_views.reset_password, name='reset-password'),
+
     # Role endpoints
     path('roles/', role_list_create, name='role-list-create'),
     path('roles/<int:pk>/', role_detail_crud, name='role-detail-crud'),

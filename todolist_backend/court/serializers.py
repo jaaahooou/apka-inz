@@ -4,41 +4,52 @@ from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import authenticate
 from .models import Role, User, Case, Document, Hearing, Notification, CaseParticipant, AuditLog, Message, ChatRoom, CaseParty
 
+# --- 1. LOGOWANIE I TOKENY ---
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         username = attrs.get("username")
         password = attrs.get("password")
 
+        # KROK 1: Sprawdźmy ręcznie, czy użytkownik w ogóle istnieje
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
+            # Jeśli nie ma takiego loginu -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
+        # KROK 2: Sprawdźmy hasło (niezależnie od tego czy aktywny)
         if not user.check_password(password):
+            # Jeśli złe hasło -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
+        # KROK 3: Skoro login i hasło są OK, to teraz sprawdzamy czy AKTYWNY
         if not user.is_active:
+            # Login/hasło super, ale konto zablokowane -> Specjalny błąd
             raise AuthenticationFailed("ACCOUNT_DISABLED")
 
+        # KROK 4: Jeśli wszystko OK, generujemy token
         return super().validate(attrs)
 
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        
-        if user.role:
-            token['role'] = str(user.role)
-            
-            token['role_name'] = str(user.role.name)
-        else:
-            token['role'] = ""
-            token['role_name'] = ""
-        
+        token['role'] = str(user.role) if user.role else ""
         token['username'] = user.username
         return token
 
+class PasswordResetSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    confirm_password = serializers.CharField(required=True, write_only=True)
 
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({"password": "Podane hasła nie są identyczne."})
+        return data
+
+# --- 2. UŻYTKOWNIK I ROLE ---
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
@@ -47,19 +58,14 @@ class RoleSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
     
-    role_name = serializers.SerializerMethodField()
-    
     class Meta:
         model = User
         fields = '__all__'
-        read_only_fields = ['date_joined']
+        read_only_fields = ['created_at']
         extra_kwargs = {
             'password': {'write_only': True}
         }
     
-    def get_role_name(self, obj):
-        return obj.role.name if obj.role else None
-
     def create(self, validated_data):
         is_active = validated_data.get('is_active', True)
         user = User.objects.create_user(
@@ -79,12 +85,11 @@ class UserSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 
-                  'role', 'phone', 'status', 'date_joined', 'is_active']
-        read_only_fields = ['id', 'username', 'date_joined'] 
+                  'role', 'phone', 'status', 'created_at', 'is_active']
+        read_only_fields = ['id', 'username', 'created_at'] 
 
-
+# --- 3. SPRAWY I DOKUMENTY (Z NOWYMI FUNKCJAMI) ---
 
 class CasePartySerializer(serializers.ModelSerializer):
     class Meta:
@@ -94,7 +99,6 @@ class CasePartySerializer(serializers.ModelSerializer):
 class CaseSerializer(serializers.ModelSerializer):
     creator_username = serializers.CharField(source='creator.username', read_only=True)
     assigned_judge_username = serializers.CharField(source='assigned_judge.username', read_only=True)
-    
     
     parties = CasePartySerializer(many=True, required=False) 
 
@@ -106,10 +110,8 @@ class CaseSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'creator', 'created_at']
 
     def create(self, validated_data):
-        
         parties_data = validated_data.pop('parties', []) 
         case = Case.objects.create(**validated_data)
-        
         
         for party in parties_data:
             CaseParty.objects.create(case=case, **party)
@@ -184,14 +186,13 @@ class AuditLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'timestamp']
 
-
+# --- 4. KOMUNIKATOR ---
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source='sender.username', read_only=True)
     sender_id = serializers.IntegerField(source='sender.id', read_only=True) 
     recipient_username = serializers.CharField(source='recipient.username', read_only=True, allow_null=True)
-    
-    attachment_url = serializers.SerializerMethodField()
-    
+    attachment_url = serializers.SerializerMethodField() 
+
     class Meta:
         model = Message
         fields = [
@@ -200,23 +201,22 @@ class MessageSerializer(serializers.ModelSerializer):
             'sender_id', 
             'sender_username', 
             'recipient', 
-            'recipient_username', 
-            'content',
-            'attachment',  
-            'attachment_url', 
+            'recipient_username',
+            'content', 
+            'attachment',      
+            'attachment_url',  
             'created_at', 
-            'is_read', 
+            'is_read',
             'room'
         ]
         read_only_fields = ['created_at', 'sender', 'sender_id', 'sender_username', 'recipient_username']
 
     def get_attachment_url(self, obj):
         request = self.context.get('request')
-        
-        if obj.attachment and hasattr(obj.attachment, 'url') and request:
+        if obj.attachment and request:
             return request.build_absolute_uri(obj.attachment.url)
         return None
-
+    
 class ChatRoomSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
     class Meta:

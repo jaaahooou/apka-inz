@@ -9,6 +9,7 @@ const useHearings = () => {
   const fetchHearings = async () => {
     try {
       setLoading(true);
+      // PRZYWRÓCONO: /court/hearings/
       const response = await API.get('/court/hearings/');
       setData(response.data);
       setError(null);
@@ -24,12 +25,10 @@ const useHearings = () => {
     fetchHearings();
   }, []);
 
-  // ✅ Funkcja do ręcznego odświeżenia
   const refetch = async () => {
     await fetchHearings();
   };
 
-  // ✅ Funkcja do aktualizacji pojedynczej rozprawy
   const updateHearing = (updatedHearing) => {
     setData((prevData) =>
       prevData.map((hearing) =>

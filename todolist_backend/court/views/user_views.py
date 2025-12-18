@@ -1,18 +1,60 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from court.models import User
-from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer
+from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer, PasswordResetSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# --- 1. LOGOWANIE (To zostało usunięte, a musi tu być!) ---
+# --- 1. LOGOWANIE ---
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
-    Niestandardowy widok logowania, który korzysta z naszego serializera
-    (sprawdza is_active i zwraca rolę w tokenie).
+    Niestandardowy widok logowania.
     """
     serializer_class = CustomTokenObtainPairSerializer
+
+# --- NOWY ENDPOINT: RESET HASŁA ---
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    Pozwala zresetować hasło użytkownikom (z wyłączeniem ADMIN i Superuser).
+    Wymaga: username, email, new_password, confirm_password.
+    """
+    serializer = PasswordResetSerializer(data=request.data)
+    if serializer.is_valid():
+        username = serializer.validated_data['username']
+        email = serializer.validated_data['email']
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            user = User.objects.get(username=username, email=email)
+        except User.DoesNotExist:
+            # Dla bezpieczeństwa można by zwracać ogólny błąd, ale tutaj chcemy pomóc userowi
+            return Response(
+                {"error": "Nie znaleziono użytkownika o podanym loginie i adresie e-mail."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # SPRAWDZENIE UPRAWNIEŃ (BLOKADA DLA ADMINÓW)
+        is_admin_role = user.role and user.role.name.upper() == 'ADMIN'
+        if user.is_superuser or is_admin_role:
+            return Response(
+                {"error": "Zmień w panelu admina!"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Zmiana hasła
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Hasło zostało pomyślnie zmienione. Możesz się teraz zalogować."},
+            status=status.HTTP_200_OK
+        )
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # --- 2. ZARZĄDZANIE UŻYTKOWNIKAMI ---
 
@@ -98,13 +140,8 @@ def user_delete(request, pk):
 
 # Zwraca dane użytkownika
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def user_profile(request):
-
-    if not request.user.is_authenticated:
-        return Response(
-            {"error": "Użytkownik nie jest zalogowany"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
     
     user = request.user
     
