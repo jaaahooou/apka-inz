@@ -12,9 +12,10 @@ import {
   IconButton,
   useTheme,
   List,
-  ListItem,
+  ListItemButton,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Button // Dodano import Button
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
@@ -28,6 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
 import useNotifications from '../hooks/useNotifications';
+import useAuth from '../hooks/useAuth';
 
 // Helper do ikony powiadomienia
 const getNotificationIcon = (type) => {
@@ -43,13 +45,17 @@ const Header = () => {
   const theme = useTheme();
   const { currentTheme } = useContext(ThemeContext);
   
-  // Hook powiadomień
+  const { user: authUser } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+
+  // Ograniczenie do 5 ostatnich powiadomień
+  const displayedNotifications = notifications.slice(0, 5);
 
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
 
-  const username = localStorage.getItem('username') || sessionStorage.getItem('username') || 'Użytkownik';
+  const username = authUser?.username || localStorage.getItem('username') || 'Użytkownik';
+  const userId = authUser?.user_id;
   const userInitial = username.charAt(0).toUpperCase();
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
@@ -59,8 +65,6 @@ const Header = () => {
   
   const handleNotificationClose = () => {
     setNotificationAnchor(null);
-    // Opcjonalnie: oznaczanie wszystkich jako przeczytane przy zamknięciu?
-    // markAllAsRead(); 
   };
 
   const handleNotificationClick = (notif) => {
@@ -115,7 +119,9 @@ const Header = () => {
           {/* User Profile */}
           <Box onClick={handleMenuOpen} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', p: 1, borderRadius: '8px' }}>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography sx={{ color: theme.palette.text.primary, fontSize: '0.95rem', fontWeight: '500' }}>{username}</Typography>
+              <Typography sx={{ color: theme.palette.text.primary, fontSize: '0.95rem', fontWeight: '500' }}>
+                  {username}
+              </Typography>
               <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Zalogowany</Typography>
             </Box>
             <Avatar sx={{ width: 38, height: 38, background: theme.palette.primary.main }}>{userInitial}</Avatar>
@@ -128,25 +134,22 @@ const Header = () => {
         anchorEl={notificationAnchor}
         open={Boolean(notificationAnchor)}
         onClose={handleNotificationClose}
-        PaperProps={{ sx: { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, width: '350px', maxHeight: '500px' } }}
+        PaperProps={{ sx: { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, width: '350px', maxHeight: '600px' } }}
       >
         <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: '600', color: theme.palette.text.primary }}>Powiadomienia</Typography>
-          {unreadCount > 0 && (
-              <Typography variant="caption" sx={{ cursor: 'pointer', color: theme.palette.primary.main }} onClick={markAllAsRead}>
-                  Oznacz wszystkie
-              </Typography>
-          )}
+          <Typography variant="caption" color="text.secondary">
+            {unreadCount > 0 ? `${unreadCount} nowych` : 'Brak nowych'}
+          </Typography>
         </Box>
         
         <List sx={{ p: 0 }}>
             {notifications.length === 0 ? (
                 <MenuItem disabled>Brak nowych powiadomień</MenuItem>
             ) : (
-                notifications.map((notif) => (
-                    <ListItem 
+                displayedNotifications.map((notif) => (
+                    <ListItemButton 
                         key={notif.id} 
-                        button 
                         onClick={() => handleNotificationClick(notif)}
                         sx={{ 
                             backgroundColor: notif.is_read ? 'transparent' : `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.08)`,
@@ -158,25 +161,40 @@ const Header = () => {
                         </ListItemIcon>
                         <ListItemText 
                             primary={
-                                <Typography variant="subtitle2" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
+                                <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
                                     {notif.title}
                                 </Typography>
                             }
                             secondary={
                                 <React.Fragment>
-                                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                                    <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
                                         {notif.message}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ color: theme.palette.text.disabled }}>
+                                    <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
                                         {new Date(notif.sent_at).toLocaleString()}
                                     </Typography>
                                 </React.Fragment>
                             }
                         />
-                    </ListItem>
+                    </ListItemButton>
                 ))
             )}
         </List>
+
+        {/* Footer with Mark All Read button */}
+        {unreadCount > 0 && (
+            <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
+                <Button 
+                    fullWidth 
+                    variant="text" 
+                    size="small" 
+                    onClick={markAllAsRead}
+                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                >
+                    Oznacz wszystkie jako przeczytane
+                </Button>
+            </Box>
+        )}
       </Menu>
 
       {/* User Menu */}

@@ -4,12 +4,15 @@ from .views import user_views, case_views, document_views, hearing_views, notifi
 
 urlpatterns = [
   
-    # ========== BIEŻĄCY UŻYTKOWNIK ==========
+    # ========== AUTH & PROFILE ==========
     path('auth/me/', chatRoom_views.current_user, name='current-user'),
     path('auth/profile/', user_views.user_profile, name='user-profile'),
-
-    # NOWA ŚCIEŻKA: Reset Hasła
+    
+    # Reset hasła (niezalogowany)
     path('auth/reset-password/', user_views.reset_password, name='reset-password'),
+    
+    # NOWE: Zmiana hasła (zalogowany)
+    path('auth/change-password/', user_views.change_password, name='change-password'),
 
     # Role endpoints
     path('roles/', role_list_create, name='role-list-create'),

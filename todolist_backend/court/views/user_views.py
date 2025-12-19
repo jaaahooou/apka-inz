@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from court.models import User
-from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer, PasswordResetSerializer
+from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer, PasswordResetSerializer, ChangePasswordSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 # --- 1. LOGOWANIE ---
@@ -13,13 +13,12 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
 
-# --- NOWY ENDPOINT: RESET HASŁA ---
+# --- 2. RESET HASŁA (Dla niezalogowanych) ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
     """
     Pozwala zresetować hasło użytkownikom (z wyłączeniem ADMIN i Superuser).
-    Wymaga: username, email, new_password, confirm_password.
     """
     serializer = PasswordResetSerializer(data=request.data)
     if serializer.is_valid():
@@ -30,7 +29,6 @@ def reset_password(request):
         try:
             user = User.objects.get(username=username, email=email)
         except User.DoesNotExist:
-            # Dla bezpieczeństwa można by zwracać ogólny błąd, ale tutaj chcemy pomóc userowi
             return Response(
                 {"error": "Nie znaleziono użytkownika o podanym loginie i adresie e-mail."},
                 status=status.HTTP_404_NOT_FOUND
@@ -44,7 +42,6 @@ def reset_password(request):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Zmiana hasła
         user.set_password(new_password)
         user.save()
 
@@ -55,8 +52,30 @@ def reset_password(request):
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# --- 3. ZMIANA HASŁA (Dla zalogowanych - Ustawienia) ---
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    Zmiana hasła przez zalogowanego użytkownika w ustawieniach.
+    Wymaga podania starego hasła.
+    """
+    serializer = ChangePasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user = request.user
+        if not user.check_password(serializer.validated_data['old_password']):
+            return Response({"old_password": ["Stare hasło jest nieprawidłowe."]}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        
+        return Response({"message": "Hasło zostało zmienione pomyślnie."}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# --- 2. ZARZĄDZANIE UŻYTKOWNIKAMI ---
+
+# --- 4. ZARZĄDZANIE UŻYTKOWNIKAMI ---
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny]) 
@@ -67,7 +86,6 @@ def user_list_create(request):
     """
     if request.method == 'GET':
         queryset = User.objects.all()
-
         role_param = request.query_params.get('role', None)
         
         if role_param:
@@ -138,13 +156,10 @@ def user_delete(request, pk):
         status=status.HTTP_204_NO_CONTENT
     )
 
-# Zwraca dane użytkownika
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
-    
     user = request.user
-    
     return Response({
         'id': user.id,
         'username': user.username,

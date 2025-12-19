@@ -11,24 +11,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         username = attrs.get("username")
         password = attrs.get("password")
 
-        # KROK 1: Sprawdźmy ręcznie, czy użytkownik w ogóle istnieje
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            # Jeśli nie ma takiego loginu -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
-        # KROK 2: Sprawdźmy hasło (niezależnie od tego czy aktywny)
         if not user.check_password(password):
-            # Jeśli złe hasło -> Błąd danych
             raise AuthenticationFailed("INVALID_CREDENTIALS")
 
-        # KROK 3: Skoro login i hasło są OK, to teraz sprawdzamy czy AKTYWNY
         if not user.is_active:
-            # Login/hasło super, ale konto zablokowane -> Specjalny błąd
             raise AuthenticationFailed("ACCOUNT_DISABLED")
 
-        # KROK 4: Jeśli wszystko OK, generujemy token
         return super().validate(attrs)
 
     @classmethod
@@ -36,6 +29,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         token['role'] = str(user.role) if user.role else ""
         token['username'] = user.username
+        token['user_id'] = user.id
         return token
 
 class PasswordResetSerializer(serializers.Serializer):
@@ -47,6 +41,17 @@ class PasswordResetSerializer(serializers.Serializer):
     def validate(self, data):
         if data['new_password'] != data['confirm_password']:
             raise serializers.ValidationError({"password": "Podane hasła nie są identyczne."})
+        return data
+
+# --- NOWY SERIALIZER: ZMIANA HASŁA (DLA ZALOGOWANYCH) ---
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({"new_password": "Hasła nie są identyczne."})
         return data
 
 # --- 2. UŻYTKOWNIK I ROLE ---
@@ -61,7 +66,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
-        read_only_fields = ['created_at']
+        # POPRAWKA: created_at -> date_joined
+        read_only_fields = ['date_joined'] 
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -85,11 +91,12 @@ class UserSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
+        # POPRAWKA: created_at -> date_joined (Django User model używa date_joined)
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 
-                  'role', 'phone', 'status', 'created_at', 'is_active']
-        read_only_fields = ['id', 'username', 'created_at'] 
+                  'role', 'phone', 'status', 'date_joined', 'is_active']
+        read_only_fields = ['id', 'username', 'date_joined'] 
 
-# --- 3. SPRAWY I DOKUMENTY (Z NOWYMI FUNKCJAMI) ---
+# --- 3. SPRAWY I DOKUMENTY ---
 
 class CasePartySerializer(serializers.ModelSerializer):
     class Meta:
@@ -170,7 +177,9 @@ class CaseParticipantSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'joined_at']
     def get_user_full_name(self, obj):
-        return f"{obj.user.first_name} {obj.user.last_name}"
+        if obj.user.first_name or obj.user.last_name:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return obj.user.username
 
 class AuditLogSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True, required=False)
