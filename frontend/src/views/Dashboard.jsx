@@ -1,4 +1,3 @@
-// src/views/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -28,10 +27,11 @@ import HearingsTodayCard from '../components/dashboard/HearingsTodayCard';
 import RecentCasesCard from '../components/dashboard/RecentCasesCard';
 import StatusChip from '../components/common/StatusChip';
 import API from '../api/axiosConfig.js';
-
+import useAuth from '../hooks/useAuth';
 
 const Dashboard = () => {
   const theme = useTheme();
+  const { user } = useAuth();
   const [filter, setFilter] = useState('aktywne');
   
   // State dla powiadomień
@@ -49,6 +49,87 @@ const Dashboard = () => {
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(true);
   const [auditLogError, setAuditLogError] = useState(null);
 
+  // State dla statystyk
+  const [stats, setStats] = useState({
+    totalCases: 0,
+    hearingsToday: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  // Sprawdź czy użytkownik jest adminem
+  const isAdmin = ['ADMIN', 'Admin', 'Sekretariat', 'SEKRETARIAT'].includes(user?.role || '');
+
+  // Pobierz statystyki (sprawy i rozprawy dzisiaj)
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+
+      try {
+        setLoadingStats(true);
+
+        // Pobierz wszystkie sprawy i rozprawy
+        const [casesRes, hearingsRes] = await Promise.all([
+          API.get('/court/cases/'),
+          API.get('/court/hearings/')
+        ]);
+
+        const allCases = casesRes.data;
+        const allHearings = hearingsRes.data;
+        const userRole = user?.role || '';
+
+        console.log('Wszystkie sprawy:', allCases.length);
+        console.log('Wszystkie rozprawy:', allHearings.length);
+
+        // Filtruj sprawy użytkownika
+        let filteredCases = [];
+
+        if (['ADMIN', 'Admin', 'Sekretariat', 'SEKRETARIAT', 'Asystent sędziego', 'asystent sedziego'].includes(userRole)) {
+          filteredCases = allCases;
+        } else if (['Sędzia', 'SEDZIA', 'Sedzia', 'Sędzina'].includes(userRole)) {
+          const hearingCaseIds = allHearings
+            .filter(h => h.judge_username === user.username)
+            .map(h => typeof h.case === 'object' ? h.case.id : h.case);
+
+          filteredCases = allCases.filter(c => 
+            c.assigned_judge_username === user.username ||
+            hearingCaseIds.includes(c.id) ||
+            c.creator_username === user.username
+          );
+        } else {
+          filteredCases = allCases.filter(c => c.creator_username === user.username);
+        }
+
+        const userCaseIds = filteredCases.map(c => c.id);
+
+        // Policz rozprawy na dziś dla spraw użytkownika
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        const hearingsToday = allHearings.filter(h => {
+          const hearingDate = new Date(h.hearing_date || h.date);
+          const hearingDateStr = hearingDate.toISOString().split('T')[0];
+          const caseId = typeof h.case === 'object' ? h.case.id : h.case;
+          
+          return hearingDateStr === todayStr && userCaseIds.includes(caseId);
+        });
+
+        console.log('Sprawy użytkownika:', filteredCases.length);
+        console.log('Rozprawy na dziś:', hearingsToday.length);
+
+        setStats({
+          totalCases: filteredCases.length,
+          hearingsToday: hearingsToday.length,
+        });
+
+      } catch (err) {
+        console.error('Błąd pobierania statystyk:', err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchStats();
+  }, [user]);
 
   // Pobierz powiadomienia z API
   useEffect(() => {
@@ -94,9 +175,14 @@ const Dashboard = () => {
     fetchDocuments();
   }, []);
 
-  // Pobierz logi audytu z API
+  // Pobierz logi audytu z API - TYLKO DLA ADMINÓW
   useEffect(() => {
     const fetchAuditLogs = async () => {
+      if (!isAdmin) {
+        setLoadingAuditLogs(false);
+        return;
+      }
+
       try {
         setLoadingAuditLogs(true);
         const response = await API.get('/court/audit-logs/');
@@ -116,8 +202,7 @@ const Dashboard = () => {
     };
 
     fetchAuditLogs();
-  }, []);
-
+  }, [isAdmin]);
 
   // Funkcja do formatowania czasu
   const formatTime = (timestamp) => {
@@ -160,7 +245,6 @@ const Dashboard = () => {
     return (bytes / 1048576).toFixed(1) + ' MB';
   };
 
-
   // Funkcja do określenia ikony powiadomienia
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -181,7 +265,6 @@ const Dashboard = () => {
     }
   };
 
-
   const getActionColor = (action) => {
     const actionUpper = action?.toUpperCase();
     switch (actionUpper) {
@@ -199,7 +282,6 @@ const Dashboard = () => {
     }
   };
 
-
   return (
     <Box 
       component="main" 
@@ -213,15 +295,29 @@ const Dashboard = () => {
     >
       <Toolbar />
 
-
       {/* SZYBKI PRZEGLĄD - Stats Cards */}
       <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
-        <StatsCard title="Sprawy" value="0" color="primary" />
-        <StatsCard title="Rozprawy dzisiaj" value="0" color="info" />
-        <StatsCard title="Dokumenty" value={documents.length.toString()} color="warning" />
-        <StatsCard title="Powiadomienia" value={notifications.length.toString()} color="error" />
+        <StatsCard 
+          title="Sprawy" 
+          value={loadingStats ? '...' : stats.totalCases.toString()} 
+          color="primary" 
+        />
+        <StatsCard 
+          title="Rozprawy dzisiaj" 
+          value={loadingStats ? '...' : stats.hearingsToday.toString()} 
+          color="info" 
+        />
+        <StatsCard 
+          title="Dokumenty" 
+          value={documents.length.toString()} 
+          color="warning" 
+        />
+        <StatsCard 
+          title="Powiadomienia" 
+          value={notifications.length.toString()} 
+          color="error" 
+        />
       </Box>
-
 
       <Grid container spacing={3}>
         {/* KOLUMNA 1 - Rozprawy dzisiaj i ostatnie sprawy */}
@@ -229,11 +325,9 @@ const Dashboard = () => {
           {/* ✅ HEARINGS TODAY COMPONENT */}
           <HearingsTodayCard />
 
-
           {/* ✅ RECENT CASES COMPONENT */}
           <RecentCasesCard />
         </Grid>
-
 
         {/* KOLUMNA 2 - Dokumenty, powiadomienia, audyt */}
         <Grid item xs={12} md={4}>
@@ -345,7 +439,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-
           {/* Powiadomienia - Z API */}
           <Card 
             sx={{ 
@@ -454,112 +547,112 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-
-          {/* Dziennik audytu - Z API */}
-          <Card
-            sx={{ 
-              backgroundColor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              border: `1px solid ${theme.palette.divider}`,
-              transition: 'all 0.3s ease',
-              '&:hover': {
-                boxShadow: theme.palette.mode === 'light' 
-                  ? '0 4px 12px rgba(0, 0, 0, 0.1)' 
-                  : '0 4px 12px rgba(0, 0, 0, 0.3)',
-              },
-            }}
-          >
-            <CardHeader
-              title="📊 Ostatnia aktywność"
-              titleTypographyProps={{ 
-                variant: 'h6', 
-                sx: { 
-                  color: theme.palette.text.primary,
-                  fontWeight: '600',
-                } 
+          {/* Dziennik audytu - TYLKO DLA ADMINÓW */}
+          {isAdmin && (
+            <Card
+              sx={{ 
+                backgroundColor: theme.palette.background.paper,
+                color: theme.palette.text.primary,
+                border: `1px solid ${theme.palette.divider}`,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: theme.palette.mode === 'light' 
+                    ? '0 4px 12px rgba(0, 0, 0, 0.1)' 
+                    : '0 4px 12px rgba(0, 0, 0, 0.3)',
+                },
               }}
-            />
-            <CardContent sx={{ p: 0 }}>
-              {loadingAuditLogs ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                  <CircularProgress size={30} />
-                </Box>
-              ) : auditLogError ? (
-                <Alert severity="error" sx={{ m: 2 }}>{auditLogError}</Alert>
-              ) : auditLogs.length === 0 ? (
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    p: 3, 
-                    textAlign: 'center',
-                    color: theme.palette.text.secondary 
-                  }}
-                >
-                  Brak aktywności
-                </Typography>
-              ) : (
-                <List disablePadding>
-                  {auditLogs.map((log, index) => (
-                    <React.Fragment key={log.id}>
-                      <ListItem 
-                        sx={{ 
-                          p: 2, 
-                          alignItems: 'flex-start',
-                          '&:hover': { 
-                            backgroundColor: theme.palette.mode === 'light'
-                              ? 'rgba(0, 0, 0, 0.04)'
-                              : 'rgba(255, 255, 255, 0.08)',
-                          },
-                          transition: 'background-color 0.2s ease',
-                        }}
-                      >
-                        <ListItemText
-                          primary={
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                color: theme.palette.text.primary,
-                              }}
-                            >
-                              <strong>{log.user || log.username || log.performed_by}</strong> {log.action}{' '}
-                              <strong>{log.object || log.object_type}</strong>
-                            </Typography>
-                          }
-                          secondary={
-                            <Typography 
-                              variant="caption" 
-                              sx={{ 
-                                color: theme.palette.text.secondary,
-                                mt: 0.5,
-                                display: 'block',
-                              }}
-                            >
-                              {formatTime(log.timestamp || log.created_at)} {log.ip_address && `• ${log.ip_address}`}
-                            </Typography>
-                          }
-                        />
-                        <Chip
-                          label={log.action}
-                          color={getActionColor(log.action)}
-                          size="small"
-                          variant="outlined"
-                          sx={{ ml: 1 }}
-                        />
-                      </ListItem>
-                      {index < auditLogs.length - 1 && 
-                        <Divider sx={{ borderColor: theme.palette.divider }} />
-                      }
-                    </React.Fragment>
-                  ))}
-                </List>
-              )}
-            </CardContent>
-          </Card>
+            >
+              <CardHeader
+                title="📊 Ostatnia aktywność"
+                titleTypographyProps={{ 
+                  variant: 'h6', 
+                  sx: { 
+                    color: theme.palette.text.primary,
+                    fontWeight: '600',
+                  } 
+                }}
+              />
+              <CardContent sx={{ p: 0 }}>
+                {loadingAuditLogs ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                    <CircularProgress size={30} />
+                  </Box>
+                ) : auditLogError ? (
+                  <Alert severity="error" sx={{ m: 2 }}>{auditLogError}</Alert>
+                ) : auditLogs.length === 0 ? (
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      p: 3, 
+                      textAlign: 'center',
+                      color: theme.palette.text.secondary 
+                    }}
+                  >
+                    Brak aktywności
+                  </Typography>
+                ) : (
+                  <List disablePadding>
+                    {auditLogs.map((log, index) => (
+                      <React.Fragment key={log.id}>
+                        <ListItem 
+                          sx={{ 
+                            p: 2, 
+                            alignItems: 'flex-start',
+                            '&:hover': { 
+                              backgroundColor: theme.palette.mode === 'light'
+                                ? 'rgba(0, 0, 0, 0.04)'
+                                : 'rgba(255, 255, 255, 0.08)',
+                            },
+                            transition: 'background-color 0.2s ease',
+                          }}
+                        >
+                          <ListItemText
+                            primary={
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color: theme.palette.text.primary,
+                                }}
+                              >
+                                <strong>{log.user || log.username || log.performed_by}</strong> {log.action}{' '}
+                                <strong>{log.object || log.object_type}</strong>
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography 
+                                variant="caption" 
+                                sx={{ 
+                                  color: theme.palette.text.secondary,
+                                  mt: 0.5,
+                                  display: 'block',
+                                }}
+                              >
+                                {formatTime(log.timestamp || log.created_at)} {log.ip_address && `• ${log.ip_address}`}
+                              </Typography>
+                            }
+                          />
+                          <Chip
+                            label={log.action}
+                            color={getActionColor(log.action)}
+                            size="small"
+                            variant="outlined"
+                            sx={{ ml: 1 }}
+                          />
+                        </ListItem>
+                        {index < auditLogs.length - 1 && 
+                          <Divider sx={{ borderColor: theme.palette.divider }} />
+                        }
+                      </React.Fragment>
+                    ))}
+                  </List>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </Grid>
       </Grid>
     </Box>
   );
 };
-
 
 export default Dashboard;
