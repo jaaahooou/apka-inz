@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Dodano useCallback
 import API from '../api/axiosConfig';
 import {
     Box,
@@ -18,8 +18,7 @@ import {
     IconButton
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
+// Usunięto nieużywane ikony CheckCircleIcon i CancelIcon
 
 const AdminUsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -28,11 +27,10 @@ const AdminUsersPage = () => {
     const [error, setError] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
 
-    // 1. Pobieranie danych (Użytkowników ORAZ Ról)
-    const fetchData = async () => {
+    // Używamy useCallback, aby funkcja nie zmieniała się przy każdym renderze
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            
             const [usersRes, rolesRes] = await Promise.all([
                 API.get('/court/users/'),
                 API.get('/court/roles/')
@@ -48,13 +46,12 @@ const AdminUsersPage = () => {
             }
             setLoading(false);
         }
-    };
+    }, [roles.length]); // Dodano zależność
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]); // Dodano fetchData do zależności
 
-    // 2. Akceptacja użytkownika
     const handleToggleActive = async (userId, currentStatus) => {
         try {
             await API.patch(`/court/users/${userId}/update/`, {
@@ -73,7 +70,6 @@ const AdminUsersPage = () => {
         }
     };
 
-    // 3. Zmiana Roli
     const handleChangeRole = async (userId, newRoleId) => {
         try {
             await API.patch(`/court/users/${userId}/update/`, {
@@ -94,6 +90,13 @@ const AdminUsersPage = () => {
     const showSuccess = (msg) => {
         setSuccessMsg(msg);
         setTimeout(() => setSuccessMsg(''), 3000);
+    };
+
+    const getRoleDisplayName = (roleName) => {
+        if (roleName === 'Asystent sędziego' || roleName === 'asystent sedziego') {
+            return 'Sekretariat';
+        }
+        return roleName;
     };
 
     if (loading) return <CircularProgress sx={{ display: 'block', mx: 'auto', mt: 4 }} />;
@@ -141,7 +144,6 @@ const AdminUsersPage = () => {
                                     </Box>
                                 </TableCell>
 
-                                {/* Lista Ról pobrana dynamicznie z bazy */}
                                 <TableCell>
                                     <Select
                                         size="small"
@@ -153,7 +155,7 @@ const AdminUsersPage = () => {
                                         <MenuItem value="" disabled>Wybierz rolę...</MenuItem>
                                         {roles.map(role => (
                                             <MenuItem key={role.id} value={role.id}>
-                                                {role.name} 
+                                                {getRoleDisplayName(role.name)}
                                             </MenuItem>
                                         ))}
                                     </Select>
