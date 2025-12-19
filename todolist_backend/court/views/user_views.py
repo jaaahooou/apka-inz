@@ -1,20 +1,81 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from court.models import User
-from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer
+from court.serializers import UserSerializer, UserUpdateSerializer, CustomTokenObtainPairSerializer, PasswordResetSerializer, ChangePasswordSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# --- 1. LOGOWANIE (To zostało usunięte, a musi tu być!) ---
+# --- 1. LOGOWANIE ---
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
-    Niestandardowy widok logowania, który korzysta z naszego serializera
-    (sprawdza is_active i zwraca rolę w tokenie).
+    Niestandardowy widok logowania.
     """
     serializer_class = CustomTokenObtainPairSerializer
 
-# --- 2. ZARZĄDZANIE UŻYTKOWNIKAMI ---
+# --- 2. RESET HASŁA (Dla niezalogowanych) ---
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    Pozwala zresetować hasło użytkownikom (z wyłączeniem ADMIN i Superuser).
+    """
+    serializer = PasswordResetSerializer(data=request.data)
+    if serializer.is_valid():
+        username = serializer.validated_data['username']
+        email = serializer.validated_data['email']
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            user = User.objects.get(username=username, email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Nie znaleziono użytkownika o podanym loginie i adresie e-mail."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # SPRAWDZENIE UPRAWNIEŃ (BLOKADA DLA ADMINÓW)
+        is_admin_role = user.role and user.role.name.upper() == 'ADMIN'
+        if user.is_superuser or is_admin_role:
+            return Response(
+                {"error": "Zmień w panelu admina!"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Hasło zostało pomyślnie zmienione. Możesz się teraz zalogować."},
+            status=status.HTTP_200_OK
+        )
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# --- 3. ZMIANA HASŁA (Dla zalogowanych - Ustawienia) ---
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    Zmiana hasła przez zalogowanego użytkownika w ustawieniach.
+    Wymaga podania starego hasła.
+    """
+    serializer = ChangePasswordSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user = request.user
+        if not user.check_password(serializer.validated_data['old_password']):
+            return Response({"old_password": ["Stare hasło jest nieprawidłowe."]}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        
+        return Response({"message": "Hasło zostało zmienione pomyślnie."}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- 4. ZARZĄDZANIE UŻYTKOWNIKAMI ---
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny]) 
@@ -25,7 +86,6 @@ def user_list_create(request):
     """
     if request.method == 'GET':
         queryset = User.objects.all()
-
         role_param = request.query_params.get('role', None)
         
         if role_param:
@@ -96,18 +156,10 @@ def user_delete(request, pk):
         status=status.HTTP_204_NO_CONTENT
     )
 
-# Zwraca dane użytkownika
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def user_profile(request):
-
-    if not request.user.is_authenticated:
-        return Response(
-            {"error": "Użytkownik nie jest zalogowany"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
     user = request.user
-    
     return Response({
         'id': user.id,
         'username': user.username,

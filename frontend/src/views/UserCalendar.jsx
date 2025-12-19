@@ -1,44 +1,66 @@
-// src/views/CalendarView.jsx
-import React, { useState } from 'react';
-import { Box, Grid, Container } from '@mui/material';
+import React, { useState, useMemo } from 'react';
+import { Box, Grid, Container, CircularProgress, Alert } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CalendarSidebar from '../components/calendar/CalendarSidebar';
 import CalendarGrid from '../components/calendar/CalendarGrid';
 import AddEventDialog from '../components/calendar/AddEventDialog';
+import useHearings from '../hooks/useHearings';
+import useCases from '../hooks/useCases'; // Potrzebujemy spraw do listy rozwijanej
 
-const CalendarView = () => {
+const UserCalendar = () => {
   const theme = useTheme();
   
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 9, 1));
+  // Pobieranie danych z backendu
+  // Destrukturyzujemy createHearing z hooka
+  const { data: hearingsData, loading: hearingsLoading, error, createHearing } = useHearings();
+  const { data: casesData } = useCases(); // Pobieramy listę spraw dla formularza
+
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newEvent, setNewEvent] = useState({ title: '', time: '10:00', type: 'court' });
+  
+  // Stan dla nowej rozprawy - zgodny z modelem backendowym i formularzem AddEventDialog
+  const [newEvent, setNewEvent] = useState({ 
+    case: '', 
+    location: '', 
+    time: '10:00', 
+    status: 'zaplanowana',
+    notes: '' 
+  });
 
-  const [events, setEvents] = useState([
-    { id: 1, date: 18, title: '12a Dinner', type: 'personal', time: '19:00' },
-    { id: 2, date: 19, title: 'Dart Game?', type: 'personal', time: '20:00' },
-    { id: 3, date: 19, title: '12z Design Review', type: 'business', time: '14:00' },
-    { id: 4, date: 20, title: '12a Doctor\'s App', type: 'health', time: '10:00' },
-    { id: 5, date: 20, title: 'Meeting With Cl', type: 'business', time: '15:00' },
-    { id: 6, date: 22, title: 'Family Trip', type: 'personal', time: '08:00' },
-    { id: 7, date: 25, title: 'Monthly Meeting', type: 'business', time: '10:00' },
-  ]);
-
+  // Definicja kolorów na podstawie statusu
   const eventColors = {
-    personal: '#FFB84D',
-    business: '#0984E3',
-    health: '#FF6B9D',
-    court: '#6C5CE7',
-    decision: '#00B894',
+    zaplanowana: '#0984E3', // Niebieski
+    odbyta: '#00B894',      // Zielony
+    odlozona: '#D63031',    // Czerwony
   };
 
-  const eventLabels = {
-    personal: '📌',
-    business: '💼',
-    health: '🏥',
-    court: '⚖️',
-    decision: '✅',
-  };
+  // Transformacja danych z backendu na format kalendarza
+  const events = useMemo(() => {
+    if (!hearingsData) return [];
+
+    return hearingsData.map(hearing => {
+      const dateObj = new Date(hearing.date_time);
+      
+      // Mapowanie statusu backendowego na klucz koloru
+      let type = 'hearing';
+      if (hearing.status === 'zaplanowana') type = 'zaplanowana';
+      if (hearing.status === 'odbyta') type = 'odbyta';
+      if (hearing.status === 'odłożona') type = 'odlozona';
+
+      return {
+        id: hearing.id,
+        dateObj: dateObj, // Przechowujemy pełny obiekt daty do filtrowania w Grid
+        date: dateObj.getDate(),
+        // Jeśli nazwa sprawy jest dostępna w API (np. przez serializer), używamy jej
+        title: hearing.case_number || `Sprawa #${hearing.case}`, 
+        description: hearing.location,
+        type: type,
+        time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        originalData: hearing
+      };
+    });
+  }, [hearingsData]);
 
   const monthName = currentDate.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
 
@@ -68,19 +90,46 @@ const CalendarView = () => {
     setNewEvent({ ...newEvent, [field]: value });
   };
 
-  const handleSaveEvent = () => {
-    if (newEvent.title) {
-      setEvents([...events, {
-        id: events.length + 1,
-        date: selectedDate,
-        title: newEvent.title,
-        type: newEvent.type,
-        time: newEvent.time,
-      }]);
-      setDialogOpen(false);
-      setNewEvent({ title: '', time: '10:00', type: 'court' });
+  // Zapisywanie nowej rozprawy w bazie
+  const handleSaveEvent = async () => {
+    if (!newEvent.case || !selectedDate) {
+        alert("Wybierz sprawę i datę.");
+        return;
+    }
+
+    // Tworzymy datę w formacie ISO (np. "2025-10-15T10:00:00")
+    // selectedDate to tylko numer dnia (int) z kalendarza, resztę bierzemy z currentDate
+    const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDate);
+    const [hours, minutes] = newEvent.time.split(':');
+    dateObj.setHours(parseInt(hours), parseInt(minutes));
+
+    // Przygotowanie payloadu dla backendu
+    const payload = {
+        case: newEvent.case, // ID wybranej sprawy
+        date_time: dateObj.toISOString(),
+        location: newEvent.location,
+        status: newEvent.status,
+        notes: newEvent.notes
+    };
+
+    try {
+        await createHearing(payload);
+        setDialogOpen(false);
+        // Reset formularza
+        setNewEvent({ case: '', location: '', time: '10:00', status: 'zaplanowana', notes: '' });
+    } catch (err) {
+        alert("Błąd podczas dodawania rozprawy. Sprawdź konsolę.");
+        console.error(err);
     }
   };
+
+  if (hearingsLoading && events.length === 0) {
+      return (
+          <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CircularProgress />
+          </Box>
+      );
+  }
 
   return (
     <Box
@@ -94,6 +143,8 @@ const CalendarView = () => {
       }}
     >
       <Container maxWidth="xl">
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        
         <Grid container spacing={3}>
           <Grid item xs={12} md={3}>
             <CalendarSidebar
@@ -130,11 +181,10 @@ const CalendarView = () => {
         monthName={monthName}
         newEvent={newEvent}
         onEventChange={handleEventChange}
-        eventColors={eventColors}
-        eventLabels={eventLabels}
+        cases={casesData} // Przekazujemy listę spraw do selecta w dialogu
       />
     </Box>
   );
 };
 
-export default CalendarView;
+export default UserCalendar;

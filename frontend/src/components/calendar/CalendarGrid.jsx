@@ -1,4 +1,3 @@
-// src/components/calendar/CalendarGrid.jsx
 import React from 'react';
 import {
   Box,
@@ -8,6 +7,7 @@ import {
   Button,
   IconButton,
   Chip,
+  Tooltip
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
@@ -32,11 +32,18 @@ const CalendarGrid = ({
   };
 
   const getFirstDayOfMonth = (date) => {
+    // 0 = Sunday, 1 = Monday. Django/PL usually prefers Monday as start.
+    // Adjusting so grid starts on Sunday based on your original code logic.
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
+  // POPRAWIONE FILTROWANIE DATY
   const getEventsForDate = (day) => {
-    return events.filter(e => e.date === day);
+    return events.filter(e => {
+        return e.dateObj.getDate() === day &&
+               e.dateObj.getMonth() === currentDate.getMonth() &&
+               e.dateObj.getFullYear() === currentDate.getFullYear();
+    });
   };
 
   const isToday = (day) => {
@@ -51,7 +58,7 @@ const CalendarGrid = ({
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayNames = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So']; // Spolszczone
 
   const days = [];
   for (let i = 0; i < firstDay; i++) {
@@ -84,7 +91,7 @@ const CalendarGrid = ({
       >
         <Box>
           <Typography sx={{ fontSize: '0.9rem', opacity: 0.9 }}>
-            {new Date().getFullYear()}
+            {currentDate.getFullYear()}
           </Typography>
           <Typography variant="h4" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
             {monthName}
@@ -106,7 +113,7 @@ const CalendarGrid = ({
               '&:hover': { backgroundColor: 'rgba(255,255,255,0.3)' },
             }}
           >
-            Today
+            Dziś
           </Button>
           <IconButton onClick={onNextMonth} sx={{ color: '#fff' }}>
             <ChevronRightIcon sx={{ fontSize: '2rem' }} />
@@ -146,8 +153,8 @@ const CalendarGrid = ({
       >
         {days.map((day, idx) => {
           const dayEvents = day ? getEventsForDate(day) : [];
-          const today = isToday(day);
-          const selected = isSelected(day);
+          const today = day ? isToday(day) : false;
+          const selected = day ? isSelected(day) : false;
 
           return (
             <Paper
@@ -163,7 +170,7 @@ const CalendarGrid = ({
                     : selected
                     ? theme.palette.primary.main + '10'
                     : theme.palette.background.paper
-                  : theme.palette.action.disabled,
+                  : theme.palette.action.disabledBackground,
                 border: selected
                   ? `3px solid ${theme.palette.primary.main}`
                   : today
@@ -179,7 +186,6 @@ const CalendarGrid = ({
             >
               {day && (
                 <>
-                  {/* Day Number */}
                   <Typography
                     sx={{
                       fontWeight: today ? 700 : 600,
@@ -191,29 +197,32 @@ const CalendarGrid = ({
                     {day}
                   </Typography>
 
-                  {/* Events */}
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {dayEvents.slice(0, 2).map((event, eventIdx) => (
-                      <Chip
-                        key={eventIdx}
-                        label={event.title}
-                        size="small"
-                        sx={{
-                          backgroundColor: eventColors[event.type],
-                          color: '#fff',
-                          fontWeight: 700,
-                          fontSize: '0.7rem',
-                          height: '22px',
-                          '& .MuiChip-label': {
-                            px: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          },
-                        }}
-                      />
+                    {dayEvents.slice(0, 3).map((event, eventIdx) => (
+                      <Tooltip key={eventIdx} title={`${event.time} - ${event.title} (${event.description || ''})`}>
+                        <Chip
+                            label={`${event.time} ${event.title}`}
+                            size="small"
+                            sx={{
+                            backgroundColor: eventColors[event.type] || eventColors.hearing,
+                            color: '#fff',
+                            fontWeight: 700,
+                            fontSize: '0.7rem',
+                            height: '22px',
+                            cursor: 'pointer',
+                            justifyContent: 'flex-start',
+                            '& .MuiChip-label': {
+                                px: 1,
+                                width: '100%',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            },
+                            }}
+                        />
+                      </Tooltip>
                     ))}
-                    {dayEvents.length > 2 && (
+                    {dayEvents.length > 3 && (
                       <Typography
                         variant="caption"
                         sx={{
@@ -223,7 +232,7 @@ const CalendarGrid = ({
                           mt: 0.5,
                         }}
                       >
-                        +{dayEvents.length - 2} more
+                        +{dayEvents.length - 3} więcej
                       </Typography>
                     )}
                   </Box>

@@ -1,4 +1,3 @@
-// src/components/calendar/CalendarSidebar.jsx
 import React from 'react';
 import {
   Box,
@@ -34,8 +33,13 @@ const CalendarSidebar = ({
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
+  // POPRAWIONE FILTROWANIE DATY (Pełne porównanie)
   const getEventsForDate = (day) => {
-    return events.filter(e => e.date === day);
+    return events.filter(e => {
+        return e.dateObj.getDate() === day &&
+               e.dateObj.getMonth() === currentDate.getMonth() &&
+               e.dateObj.getFullYear() === currentDate.getFullYear();
+    });
   };
 
   const isToday = (day) => {
@@ -50,7 +54,7 @@ const CalendarSidebar = ({
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDay = getFirstDayOfMonth(currentDate);
   const monthName = currentDate.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayNames = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So'];
 
   const days = [];
   for (let i = 0; i < firstDay; i++) {
@@ -59,6 +63,9 @@ const CalendarSidebar = ({
   for (let i = 1; i <= daysInMonth; i++) {
     days.push(i);
   }
+
+  // Lista wydarzeń dla wybranego dnia
+  const selectedDayEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
   return (
     <Card
@@ -99,7 +106,7 @@ const CalendarSidebar = ({
             },
           }}
         >
-          Add Event
+          Dodaj termin
         </Button>
       </Box>
 
@@ -170,10 +177,33 @@ const CalendarSidebar = ({
         </Box>
       </Box>
 
-      {/* Event Types Legend */}
+      {/* Selected Day Events Preview */}
+      {selectedDate && (
+          <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 1.5, display: 'block', color: theme.palette.text.secondary }}>
+              Wydarzenia ({selectedDate} {monthName})
+            </Typography>
+            {selectedDayEvents.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Brak wydarzeń</Typography>
+            ) : (
+                selectedDayEvents.map(event => (
+                    <Box key={event.id} sx={{ mb: 1, p: 1, borderRadius: 1, backgroundColor: theme.palette.action.hover }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: eventColors[event.type] }}>
+                            {event.time} - {event.title}
+                        </Typography>
+                        <Typography variant="caption" display="block">
+                            {event.description}
+                        </Typography>
+                    </Box>
+                ))
+            )}
+          </Box>
+      )}
+
+      {/* Legend */}
       <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
         <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 1.5, display: 'block', color: theme.palette.text.secondary }}>
-          Filter
+          Legenda
         </Typography>
         {Object.entries(eventColors).map(([type, color]) => (
           <Box key={type} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>

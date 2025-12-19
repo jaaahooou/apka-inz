@@ -1,10 +1,8 @@
-// src/components/Header.jsx
 import React, { useState, useContext } from 'react';
 import {
   AppBar,
   Toolbar,
   Typography,
-  Button,
   Box,
   Avatar,
   Menu,
@@ -13,192 +11,120 @@ import {
   Badge,
   IconButton,
   useTheme,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
+  Button // Dodano import Button
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
+  Description as DescriptionIcon,
+  Gavel as GavelIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
+import useNotifications from '../hooks/useNotifications';
+import useAuth from '../hooks/useAuth';
+
+// Helper do ikony powiadomienia
+const getNotificationIcon = (type) => {
+    switch(type) {
+        case 'hearing_reminder': return <GavelIcon color="primary" fontSize="small" />;
+        case 'document_added': return <DescriptionIcon color="info" fontSize="small" />;
+        default: return <InfoIcon color="action" fontSize="small" />;
+    }
+};
 
 const Header = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const { currentTheme } = useContext(ThemeContext);
+  
+  const { user: authUser } = useAuth();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+
+  // Ograniczenie do 5 ostatnich powiadomień
+  const displayedNotifications = notifications.slice(0, 5);
+
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
 
-  const username = localStorage.getItem('username') || sessionStorage.getItem('username') || 'Użytkownik';
+  const username = authUser?.username || localStorage.getItem('username') || 'Użytkownik';
+  const userId = authUser?.user_id;
   const userInitial = username.charAt(0).toUpperCase();
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
+  const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleNotificationOpen = (event) => {
-    setNotificationAnchor(event.currentTarget);
-  };
-
+  const handleNotificationOpen = (event) => setNotificationAnchor(event.currentTarget);
+  
   const handleNotificationClose = () => {
     setNotificationAnchor(null);
   };
 
+  const handleNotificationClick = (notif) => {
+      if (!notif.is_read) {
+          markAsRead(notif.id);
+      }
+      // Nawigacja w zależności od typu (opcjonalnie)
+      if (notif.type === 'hearing_reminder' || notif.type === 'document_added') {
+           // Można dodać case_id do powiadomienia w backendzie, by tu nawigować
+           // navigate(`/cases/${notif.case_id}`);
+      }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('username');
-    localStorage.removeItem('userId');
     sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('refresh_token');
     sessionStorage.removeItem('username');
-    sessionStorage.removeItem('userId');
-
     navigate('/login');
     handleMenuClose();
   };
 
-  const handleSettings = () => {
-    navigate('/settings');
-    handleMenuClose();
-  };
-
   return (
-    <AppBar
-      position="fixed"
-      sx={{
-        zIndex: (theme) => theme.zIndex.drawer + 1,
-        backgroundColor: theme.palette.background.paper,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-      }}
-    >
-      <Toolbar
-        sx={{
-          justifyContent: 'space-between',
-          py: 1,
-          px: 3,
-        }}
-      >
-        {/* Left Side - Logo & Title */}
+    <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, backgroundColor: theme.palette.background.paper, borderBottom: `1px solid ${theme.palette.divider}`, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)' }}>
+      <Toolbar sx={{ justifyContent: 'space-between', py: 1, px: 3 }}>
+        
+        {/* Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: '8px',
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.divider} 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              color: theme.palette.primary.main,
-            }}
-          >
+          <Box sx={{ width: 40, height: 40, borderRadius: '8px', background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.divider} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
             ⚖️
           </Box>
           <Box>
-            <Typography
-              variant="h6"
-              sx={{
-                color: theme.palette.primary.main,
-                fontWeight: '700',
-                letterSpacing: '0.5px',
-                margin: 0,
-              }}
-            >
-              SĄDY
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: theme.palette.text.secondary,
-                fontSize: '0.7rem',
-              }}
-            >
-              System Zarządzania Sprawami
-            </Typography>
+            <Typography variant="h6" sx={{ color: theme.palette.primary.main, fontWeight: '700', margin: 0 }}>SĄDY</Typography>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>System Zarządzania Sprawami</Typography>
           </Box>
         </Box>
 
-        {/* Right Side - Actions */}
+        {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          
           {/* Notifications */}
-          <IconButton
-            onClick={handleNotificationOpen}
-            sx={{
-              color: theme.palette.text.secondary,
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                color: theme.palette.primary.main,
-                backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
-              },
-            }}
-          >
-            <Badge badgeContent={3} color="error">
+          <IconButton onClick={handleNotificationOpen} sx={{ color: theme.palette.text.secondary }}>
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
 
-          <Divider
-            orientation="vertical"
-            flexItem
-            sx={{ my: 1, borderColor: theme.palette.divider }}
-          />
+          <Divider orientation="vertical" flexItem sx={{ my: 1, borderColor: theme.palette.divider }} />
 
-          {/* User Menu */}
-          <Box
-            onClick={handleMenuOpen}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              cursor: 'pointer',
-              p: 1,
-              borderRadius: '8px',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
-              },
-            }}
-          >
+          {/* User Profile */}
+          <Box onClick={handleMenuOpen} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', p: 1, borderRadius: '8px' }}>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography
-                sx={{
-                  color: theme.palette.text.primary,
-                  fontSize: '0.95rem',
-                  fontWeight: '500',
-                }}
-              >
-                {username}
+              <Typography sx={{ color: theme.palette.text.primary, fontSize: '0.95rem', fontWeight: '500' }}>
+                  {username}
               </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  fontSize: '0.75rem',
-                }}
-              >
-                Zalogowany
-              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Zalogowany</Typography>
             </Box>
-            <Avatar
-              sx={{
-                width: 38,
-                height: 38,
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary?.main || theme.palette.primary.main} 100%)`,
-                fontWeight: 'bold',
-                color: theme.palette.mode === 'light' ? '#fff' : theme.palette.text.primary,
-                fontSize: '1rem',
-                cursor: 'pointer',
-              }}
-            >
-              {userInitial}
-            </Avatar>
+            <Avatar sx={{ width: 38, height: 38, background: theme.palette.primary.main }}>{userInitial}</Avatar>
           </Box>
         </Box>
       </Toolbar>
@@ -208,124 +134,78 @@ const Header = () => {
         anchorEl={notificationAnchor}
         open={Boolean(notificationAnchor)}
         onClose={handleNotificationClose}
-        PaperProps={{
-          sx: {
-            backgroundColor: theme.palette.background.paper,
-            border: `1px solid ${theme.palette.divider}`,
-            minWidth: '320px',
-            mt: 1,
-          },
-        }}
+        PaperProps={{ sx: { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, width: '350px', maxHeight: '600px' } }}
       >
-        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-          <Typography sx={{ color: theme.palette.text.primary, fontWeight: '600' }}>
-            Powiadomienia
+        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography sx={{ fontWeight: '600', color: theme.palette.text.primary }}>Powiadomienia</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {unreadCount > 0 ? `${unreadCount} nowych` : 'Brak nowych'}
           </Typography>
         </Box>
-        <MenuItem
-          sx={{
-            color: theme.palette.text.secondary,
-            '&:hover': { backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)` },
-          }}
-        >
-          <Box sx={{ color: theme.palette.text.primary, fontSize: '0.9rem' }}>
-            📅 Rozprava w sprawie CASE-2025-001 za 30 minut
-          </Box>
-        </MenuItem>
-        <MenuItem
-          sx={{
-            color: theme.palette.text.secondary,
-            '&:hover': { backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)` },
-          }}
-        >
-          <Box sx={{ color: theme.palette.text.primary, fontSize: '0.9rem' }}>
-            📄 Nowe pismo w sprawie CASE-2025-005
-          </Box>
-        </MenuItem>
-        <MenuItem
-          sx={{
-            color: theme.palette.text.secondary,
-            '&:hover': { backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)` },
-          }}
-        >
-          <Box sx={{ color: theme.palette.text.primary, fontSize: '0.9rem' }}>
-            💬 Nowa wiadomość w czacie
-          </Box>
-        </MenuItem>
-        <Divider sx={{ borderColor: theme.palette.divider }} />
-        <MenuItem
-          sx={{
-            justifyContent: 'center',
-            color: theme.palette.primary.main,
-            fontSize: '0.85rem',
-            fontWeight: '500',
-            '&:hover': { backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)` },
-          }}
-        >
-          Pokaż wszystkie
-        </MenuItem>
+        
+        <List sx={{ p: 0 }}>
+            {notifications.length === 0 ? (
+                <MenuItem disabled>Brak nowych powiadomień</MenuItem>
+            ) : (
+                displayedNotifications.map((notif) => (
+                    <ListItemButton 
+                        key={notif.id} 
+                        onClick={() => handleNotificationClick(notif)}
+                        sx={{ 
+                            backgroundColor: notif.is_read ? 'transparent' : `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.08)`,
+                            borderBottom: `1px solid ${theme.palette.divider}`
+                        }}
+                    >
+                        <ListItemIcon sx={{ minWidth: '40px' }}>
+                            {getNotificationIcon(notif.type)}
+                        </ListItemIcon>
+                        <ListItemText 
+                            primary={
+                                <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
+                                    {notif.title}
+                                </Typography>
+                            }
+                            secondary={
+                                <React.Fragment>
+                                    <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                                        {notif.message}
+                                    </Typography>
+                                    <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
+                                        {new Date(notif.sent_at).toLocaleString()}
+                                    </Typography>
+                                </React.Fragment>
+                            }
+                        />
+                    </ListItemButton>
+                ))
+            )}
+        </List>
+
+        {/* Footer with Mark All Read button */}
+        {unreadCount > 0 && (
+            <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
+                <Button 
+                    fullWidth 
+                    variant="text" 
+                    size="small" 
+                    onClick={markAllAsRead}
+                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                >
+                    Oznacz wszystkie jako przeczytane
+                </Button>
+            </Box>
+        )}
       </Menu>
 
       {/* User Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        PaperProps={{
-          sx: {
-            backgroundColor: theme.palette.background.paper,
-            border: `1px solid ${theme.palette.divider}`,
-            mt: 1,
-          },
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <MenuItem disabled sx={{ color: theme.palette.text.secondary, py: 1.5 }}>
-          <AccountCircleIcon sx={{ mr: 1.5 }} />
-          <Typography sx={{ fontSize: '0.9rem' }}>Mój profil</Typography>
-        </MenuItem>
-
-        <Divider sx={{ borderColor: theme.palette.divider }} />
-
-        <MenuItem
-          onClick={handleSettings}
-          sx={{
-            color: theme.palette.text.secondary,
-            py: 1,
-            '&:hover': {
-              backgroundColor: `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.1)`,
-              color: theme.palette.text.primary,
-            },
-          }}
-        >
-          <SettingsIcon sx={{ mr: 1.5 }} />
-          <Typography sx={{ fontSize: '0.9rem' }}>Ustawienia</Typography>
-        </MenuItem>
-
-        <Divider sx={{ borderColor: theme.palette.divider }} />
-
-        <MenuItem
-          onClick={handleLogout}
-          sx={{
-            color: '#ef5350',
-            py: 1,
-            '&:hover': {
-              backgroundColor: 'rgba(239, 83, 80, 0.1)',
-              color: '#ff6b6b',
-            },
-          }}
-        >
-          <LogoutIcon sx={{ mr: 1.5 }} />
-          <Typography sx={{ fontSize: '0.9rem' }}>Wyloguj się</Typography>
-        </MenuItem>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose} PaperProps={{ sx: { backgroundColor: theme.palette.background.paper, mt: 1 } }}>
+        <MenuItem disabled sx={{ py: 1.5 }}> <AccountCircleIcon sx={{ mr: 1.5 }} /> Mój profil </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { navigate('/settings'); handleMenuClose(); }}> <SettingsIcon sx={{ mr: 1.5 }} /> Ustawienia </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleLogout} sx={{ color: '#ef5350' }}> <LogoutIcon sx={{ mr: 1.5 }} /> Wyloguj się </MenuItem>
       </Menu>
+
     </AppBar>
   );
 };

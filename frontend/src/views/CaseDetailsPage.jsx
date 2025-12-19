@@ -2,57 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/axiosConfig.js';
 import {
-    Box, Paper, Typography, CircularProgress, Alert, Grid, Divider, Chip, Button, List, ListItem, ListItemText, ListItemAvatar, Avatar, IconButton, Tooltip
+    Box, Paper, Typography, CircularProgress, Alert, Grid, Divider, Chip, Button
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'; // Ikona pliku
-import DownloadIcon from '@mui/icons-material/Download'; // Ikona pobierania
-import DescriptionIcon from '@mui/icons-material/Description';
 
 const CaseDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    
     const [caseData, setCaseData] = useState(null);
-    const [documents, setDocuments] = useState([]); // ✅ Stan na dokumenty
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchCaseDetails = async () => {
             try {
-                // Pobieramy równolegle szczegóły sprawy ORAZ listę dokumentów
-                const [caseRes, docsRes] = await Promise.all([
-                    API.get(`/court/cases/${id}/`),
-                    API.get(`/court/cases/${id}/documents/`) // Zakładam, że ten endpoint istnieje w urls.py
-                ]);
-
-                setCaseData(caseRes.data);
-                setDocuments(docsRes.data);
+                const response = await API.get(`/court/cases/${id}/`);
+                setCaseData(response.data);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Nie udało się pobrać danych sprawy.");
+                console.error("Error fetching case details:", err);
+                setError("Nie udało się pobrać szczegółów sprawy.");
             } finally {
                 setLoading(false);
             }
         };
 
-        if (id) fetchData();
+        if (id) fetchCaseDetails();
     }, [id]);
-
-    // Funkcja pomocnicza do formatowania rozmiaru pliku
-    const formatBytes = (bytes, decimals = 2) => {
-        if (!+bytes) return '0 Bytes';
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-    };
 
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
     if (error) return <Alert severity="error" sx={{ mt: 5, mx: 'auto', maxWidth: 600 }}>{error}</Alert>;
@@ -88,10 +67,9 @@ const CaseDetailsPage = () => {
                 <Divider sx={{ mb: 4 }} />
 
                 <Grid container spacing={4}>
-                    {/* LEWA KOLUMNA */}
+                    {/* LEWA KOLUMNA: Opis i Strony */}
                     <Grid item xs={12} md={8}>
-                        
-                        {/* 1. OPIS SPRAWY */}
+                        {/* Opis */}
                         <Box sx={{ mb: 4 }}>
                             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
                                 <GavelIcon fontSize="small" /> Opis Sprawy
@@ -103,62 +81,7 @@ const CaseDetailsPage = () => {
                             </Paper>
                         </Box>
 
-                        {/* ✅ 2. AKTA SPRAWY / DOKUMENTY (NOWOŚĆ) */}
-                        <Box sx={{ mb: 4 }}>
-                            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
-                                <DescriptionIcon fontSize="small" /> Akta Sprawy / Dokumenty
-                            </Typography>
-                            
-                            {documents.length > 0 ? (
-                                <List sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 2, border: '1px solid rgba(0,0,0,0.1)' }}>
-                                    {documents.map((doc, index) => (
-                                        <React.Fragment key={doc.id}>
-                                            <ListItem 
-                                                secondaryAction={
-                                                    <Tooltip title="Pobierz plik">
-                                                        <IconButton 
-                                                            edge="end" 
-                                                            aria-label="download" 
-                                                            component="a" 
-                                                            href={doc.file_url || doc.file} // URL do pliku z backendu
-                                                            target="_blank" // Otwórz w nowym oknie
-                                                            download // Sugeruj pobieranie
-                                                            color="primary"
-                                                        >
-                                                            <DownloadIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                }
-                                            >
-                                                <ListItemAvatar>
-                                                    <Avatar sx={{ bgcolor: 'primary.light' }}>
-                                                        <InsertDriveFileIcon />
-                                                    </Avatar>
-                                                </ListItemAvatar>
-                                                <ListItemText 
-                                                    primary={doc.title} 
-                                                    secondary={
-                                                        <>
-                                                            <Typography component="span" variant="body2" color="text.primary">
-                                                                Dodano: {new Date(doc.uploaded_at).toLocaleDateString()} 
-                                                            </Typography>
-                                                            {doc.file_size && ` — ${formatBytes(doc.file_size)}`}
-                                                        </>
-                                                    } 
-                                                />
-                                            </ListItem>
-                                            {index < documents.length - 1 && <Divider variant="inset" component="li" />}
-                                        </React.Fragment>
-                                    ))}
-                                </List>
-                            ) : (
-                                <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', borderStyle: 'dashed' }}>
-                                    <Typography variant="body2" color="text.secondary">Brak załączonych dokumentów w tej sprawie.</Typography>
-                                </Paper>
-                            )}
-                        </Box>
-
-                        {/* 3. STRONY POSTĘPOWANIA */}
+                        {/* Strony Postępowania */}
                         <Box>
                             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
                                 <PersonIcon fontSize="small" /> Strony Postępowania

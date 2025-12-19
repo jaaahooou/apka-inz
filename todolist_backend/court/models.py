@@ -18,7 +18,11 @@ class User(AbstractUser):
     status = models.CharField(max_length=100)
     
     def __str__(self):
-        return f'{self.first_name} {self.last_name}'
+        # POPRAWKA: Jeśli brak imienia/nazwiska, zwróć login.
+        # Wcześniej zwracało pusty string, dlatego w powiadomieniu było pusto.
+        if self.first_name or self.last_name:
+            return f'{self.first_name} {self.last_name}'.strip()
+        return self.username
 
 class Case(models.Model):
     case_number = models.CharField(max_length=100, unique=True)
@@ -199,7 +203,7 @@ class AuditLog(models.Model):
         return f"{self.get_action_display()} - {self.get_object_type_display()} #{self.object_id} - {self.user.username if self.user else 'Anonymous'}"
     
     
-   
+    
 
 class ChatRoom(models.Model):
     """
@@ -313,6 +317,3 @@ class FavoriteContact(models.Model):
 
     def __str__(self):
         return f"{self.owner_id}->{self.contact_id}"
-
-
-
