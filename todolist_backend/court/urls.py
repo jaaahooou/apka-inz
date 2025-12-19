@@ -11,7 +11,7 @@ urlpatterns = [
     # Reset hasła (niezalogowany)
     path('auth/reset-password/', user_views.reset_password, name='reset-password'),
     
-    # NOWE: Zmiana hasła (zalogowany)
+    # Zmiana hasła (zalogowany)
     path('auth/change-password/', user_views.change_password, name='change-password'),
 
     # Role endpoints
@@ -46,6 +46,8 @@ urlpatterns = [
     path('notifications/unread-count/', notification_views.notification_unread_count, name='notification-unread-count'),
     path('notifications/<int:pk>/read/', notification_views.mark_notification_as_read, name='mark-notification-read'),
     path('notifications/read-all/', notification_views.mark_all_notifications_as_read, name='mark-all-notifications-read'),
+    # NOWE: Endpoint usuwania
+    path('notifications/<int:pk>/delete/', notification_views.notification_delete, name='notification-delete'),
 
     # CaseParticipants endpoints
     path('cases/<int:case_id>/participants/', CaseParticipant_views.case_participants_list, name='case-participants-list'),

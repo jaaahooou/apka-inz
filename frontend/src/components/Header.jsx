@@ -15,7 +15,7 @@ import {
   ListItemButton,
   ListItemText,
   ListItemIcon,
-  Button // Dodano import Button
+  Button
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
@@ -24,7 +24,8 @@ import {
   Settings as SettingsIcon,
   Description as DescriptionIcon,
   Gavel as GavelIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Delete as DeleteIcon // Ikona usuwania
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -46,7 +47,8 @@ const Header = () => {
   const { currentTheme } = useContext(ThemeContext);
   
   const { user: authUser } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  // Destrukturyzacja deleteNotification
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   // Ograniczenie do 5 ostatnich powiadomień
   const displayedNotifications = notifications.slice(0, 5);
@@ -71,11 +73,14 @@ const Header = () => {
       if (!notif.is_read) {
           markAsRead(notif.id);
       }
-      // Nawigacja w zależności od typu (opcjonalnie)
       if (notif.type === 'hearing_reminder' || notif.type === 'document_added') {
-           // Można dodać case_id do powiadomienia w backendzie, by tu nawigować
-           // navigate(`/cases/${notif.case_id}`);
+           // Opcjonalna nawigacja
       }
+  };
+
+  const handleDeleteClick = (e, id) => {
+      e.stopPropagation(); // Zapobiega otwarciu powiadomienia przy usuwaniu
+      deleteNotification(id);
   };
 
   const handleLogout = () => {
@@ -153,35 +158,53 @@ const Header = () => {
                         onClick={() => handleNotificationClick(notif)}
                         sx={{ 
                             backgroundColor: notif.is_read ? 'transparent' : `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.08)`,
-                            borderBottom: `1px solid ${theme.palette.divider}`
+                            borderBottom: `1px solid ${theme.palette.divider}`,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            pr: 1 // Padding right for delete button
                         }}
                     >
-                        <ListItemIcon sx={{ minWidth: '40px' }}>
-                            {getNotificationIcon(notif.type)}
-                        </ListItemIcon>
-                        <ListItemText 
-                            primary={
-                                <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
-                                    {notif.title}
-                                </Typography>
-                            }
-                            secondary={
-                                <React.Fragment>
-                                    <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
-                                        {notif.message}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', flexGrow: 1 }}>
+                            <ListItemIcon sx={{ minWidth: '40px', mt: 0.5 }}>
+                                {getNotificationIcon(notif.type)}
+                            </ListItemIcon>
+                            <ListItemText 
+                                primary={
+                                    <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
+                                        {notif.title}
                                     </Typography>
-                                    <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
-                                        {new Date(notif.sent_at).toLocaleString()}
-                                    </Typography>
-                                </React.Fragment>
-                            }
-                        />
+                                }
+                                secondary={
+                                    <React.Fragment>
+                                        <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                                            {notif.message}
+                                        </Typography>
+                                        <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
+                                            {new Date(notif.sent_at).toLocaleString()}
+                                        </Typography>
+                                    </React.Fragment>
+                                }
+                            />
+                        </Box>
+                        
+                        <IconButton 
+                            size="small" 
+                            onClick={(e) => handleDeleteClick(e, notif.id)}
+                            sx={{ 
+                                color: theme.palette.text.disabled, 
+                                '&:hover': { color: theme.palette.error.main, backgroundColor: 'rgba(211, 47, 47, 0.08)' },
+                                ml: 1,
+                                mt: 0.5
+                            }}
+                        >
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
                     </ListItemButton>
                 ))
             )}
         </List>
 
-        {/* Footer with Mark All Read button */}
         {unreadCount > 0 && (
             <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
                 <Button 

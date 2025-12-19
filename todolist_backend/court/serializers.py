@@ -30,6 +30,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['role'] = str(user.role) if user.role else ""
         token['username'] = user.username
         token['user_id'] = user.id
+        # USUNIĘTO: token['theme'] = user.theme
         return token
 
 class PasswordResetSerializer(serializers.Serializer):
@@ -66,7 +67,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
-        # POPRAWKA: created_at -> date_joined
+        # POPRAWKA: created_at -> date_joined (User nie ma created_at)
         read_only_fields = ['date_joined'] 
         extra_kwargs = {
             'password': {'write_only': True}
@@ -85,13 +86,14 @@ class UserSerializer(serializers.ModelSerializer):
         user.phone = validated_data.get('phone', '')
         user.status = validated_data.get('status', '')
         user.is_active = is_active
+        # USUNIĘTO: user.theme
         user.save()
         return user
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # POPRAWKA: created_at -> date_joined (Django User model używa date_joined)
+        # USUNIĘTO: 'theme' oraz POPRAWIONO 'created_at' -> 'date_joined'
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 
                   'role', 'phone', 'status', 'date_joined', 'is_active']
         read_only_fields = ['id', 'username', 'date_joined'] 

@@ -38,3 +38,16 @@ def mark_all_notifications_as_read(request):
     notifications = Notification.objects.filter(user=request.user, is_read=False)
     count = notifications.update(is_read=True, read_at=timezone.now())
     return Response({'marked_as_read': count}, status=status.HTTP_200_OK)
+
+@api_view(['DELETE'])
+def notification_delete(request, pk):
+    """Usuń konkretne powiadomienie"""
+    try:
+        notification = Notification.objects.get(pk=pk, user=request.user)
+        notification.delete()
+        return Response({'message': 'Powiadomienie usunięte'}, status=status.HTTP_204_NO_CONTENT)
+    except Notification.DoesNotExist:
+        return Response(
+            {'error': 'Powiadomienie nie znalezione'},
+            status=status.HTTP_404_NOT_FOUND
+        )

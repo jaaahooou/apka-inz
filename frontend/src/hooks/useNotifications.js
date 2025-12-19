@@ -28,17 +28,12 @@ const useNotifications = () => {
   }, [fetchNotifications]);
 
   // 2. Obsługa WebSocket (Real-time)
-  // Używamy ws://127.0.0.1:8000/ws/notifications/
   const handleWebSocketMessage = useCallback((message) => {
     if (message.type === 'notification') {
       const newNotif = message.data;
       
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
-      
-      // Opcjonalnie: Dźwięk powiadomienia
-      // const audio = new Audio('/notification_sound.mp3');
-      // audio.play().catch(e => console.log('Audio blocked'));
     }
   }, []);
 
@@ -68,12 +63,35 @@ const useNotifications = () => {
     }
   };
 
+  // 4. Usuwanie powiadomienia
+  const deleteNotification = async (id) => {
+    try {
+        await API.delete(`/court/notifications/${id}/delete/`);
+        
+        setNotifications(prev => {
+            // Znajdź usuwane powiadomienie
+            const target = prev.find(n => n.id === id);
+            
+            // Jeśli usuwamy nieprzeczytane, zmniejsz licznik
+            if (target && !target.is_read) {
+                setUnreadCount(current => Math.max(0, current - 1));
+            }
+            
+            // Zwróć nową listę bez tego elementu
+            return prev.filter(n => n.id !== id);
+        });
+    } catch (error) {
+        console.error("Błąd usuwania powiadomienia:", error);
+    }
+  };
+
   return {
     notifications,
     unreadCount,
     loading,
     markAsRead,
     markAllAsRead,
+    deleteNotification, // Eksportujemy nową funkcję
     refetch: fetchNotifications
   };
 };
