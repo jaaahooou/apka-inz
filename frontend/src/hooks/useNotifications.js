@@ -7,6 +7,22 @@ const useNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Funkcja pomocnicza do odtwarzania dźwięku
+  const playNotificationSound = () => {
+    // Sprawdź w localStorage, czy dźwięk jest włączony (domyślnie true, jeśli brak klucza)
+    const soundEnabled = localStorage.getItem('notificationSound') !== 'false';
+    
+    if (soundEnabled) {
+      // Upewnij się, że masz plik notification.mp3 w folderze public/sounds/
+      const audio = new Audio('/sounds/notification.mp3');
+      audio.volume = 0.5; // Opcjonalnie: ustawienie głośności
+      audio.play().catch((error) => {
+        // Przeglądarki mogą blokować autoplay, jeśli użytkownik nie wszedł w interakcję ze stroną
+        console.warn("Nie udało się odtworzyć dźwięku powiadomienia:", error);
+      });
+    }
+  };
+
   // 1. Pobieranie wstępnych danych (REST API)
   const fetchNotifications = useCallback(async () => {
     try {
@@ -34,6 +50,9 @@ const useNotifications = () => {
       
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
+
+      // ODTWÓRZ DŹWIĘK przy nadejściu nowego powiadomienia
+      playNotificationSound();
     }
   }, []);
 
@@ -91,7 +110,7 @@ const useNotifications = () => {
     loading,
     markAsRead,
     markAllAsRead,
-    deleteNotification, // Eksportujemy nową funkcję
+    deleteNotification,
     refetch: fetchNotifications
   };
 };

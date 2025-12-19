@@ -17,9 +17,11 @@ class User(AbstractUser):
     phone = models.CharField(max_length=50)
     status = models.CharField(max_length=100)
     
+    # --- STATUSY ---
+    is_visible = models.BooleanField(default=True, help_text="Czy status online jest widoczny dla innych")
+    is_online = models.BooleanField(default=False, help_text="Czy użytkownik ma aktywne połączenie WebSocket")
+
     def __str__(self):
-        # POPRAWKA: Jeśli brak imienia/nazwiska, zwróć login.
-        # Wcześniej zwracało pusty string, dlatego w powiadomieniu było pusto.
         if self.first_name or self.last_name:
             return f'{self.first_name} {self.last_name}'.strip()
         return self.username

@@ -17,6 +17,7 @@ import {
 import { ThemeContext } from '../contexts/ThemeContext';
 import useAuth from '../hooks/useAuth';
 import API from '../api/axiosConfig';
+import useWebSocket from '../hooks/useWebSocket'; // Potrzebny do wysłania sygnału visibility_change
 import PaletteIcon from '@mui/icons-material/Palette';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PersonIcon from '@mui/icons-material/Person';
@@ -26,6 +27,9 @@ import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
 const Settings = () => {
   const { currentTheme, changeTheme, themes } = useContext(ThemeContext);
   const { user } = useAuth(); // user zawiera dane z tokena, w tym user_id
+
+  // WebSocket do wysyłania zmian statusu na żywo
+  const { send } = useWebSocket('ws://127.0.0.1:8000/ws/notifications/');
 
   // --- STAN DANYCH ---
   const [profileData, setProfileData] = useState({
@@ -47,10 +51,60 @@ const Settings = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [themeSavedMessage, setThemeSavedMessage] = useState(false);
 
+  // --- STAN USTAWIEŃ (Dźwięki, Status) ---
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem('notificationSound') !== 'false';
+  });
+
+  // Stan dla widoczności online (z bazy danych)
+  const [onlineStatusVisible, setOnlineStatusVisible] = useState(true); 
+
+  // --- HANDLER PRZEŁĄCZNIKA DŹWIĘKU ---
+  const handleSoundToggle = (event) => {
+    const isEnabled = event.target.checked;
+    setSoundEnabled(isEnabled);
+    localStorage.setItem('notificationSound', isEnabled);
+    
+    if (isEnabled) {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('Błąd odtwarzania testowego', e));
+    }
+  };
+
+  // --- HANDLER PRZEŁĄCZNIKA WIDOCZNOŚCI ---
+  const handleVisibilityToggle = async (event) => {
+    const isVisible = event.target.checked;
+    setOnlineStatusVisible(isVisible);
+    const userId = user?.user_id || user?.id;
+
+    if (!userId) return;
+
+    try {
+        // 1. Zapisz w bazie danych
+        await API.patch(`/court/users/${userId}/update/`, { is_visible: isVisible });
+        
+        // 2. Wyślij sygnał przez WebSocket, aby inni widzieli zmianę natychmiast
+        if (send) {
+            send({
+                type: 'visibility_change',
+                status: isVisible ? 'online' : 'offline'
+            });
+        }
+        
+        // Aktualizuj lokalny storage dla Header.jsx (opcjonalnie)
+        localStorage.setItem('is_visible', isVisible);
+
+    } catch (err) {
+        console.error("Błąd zmiany statusu widoczności:", err);
+        setErrorMsg("Nie udało się zmienić statusu widoczności.");
+        setOnlineStatusVisible(!isVisible); // Cofnij zmianę w UI
+    }
+  };
+
   // --- POBIERANIE DANYCH UŻYTKOWNIKA ---
   useEffect(() => {
     const fetchUserData = async () => {
-      // Pobieramy ID użytkownika. W AuthContext może być user_id lub id
       const userId = user?.user_id || user?.id;
       if (!userId) return;
 
@@ -62,6 +116,11 @@ const Settings = () => {
           email: response.data.email || '',
           phone: response.data.phone || '',
         });
+        // Ustawienie przełącznika na podstawie danych z bazy
+        if (response.data.is_visible !== undefined) {
+            setOnlineStatusVisible(response.data.is_visible);
+            localStorage.setItem('is_visible', response.data.is_visible);
+        }
       } catch (err) {
         console.error("Błąd pobierania profilu:", err);
         setErrorMsg("Nie udało się pobrać danych profilu.");
@@ -368,33 +427,34 @@ const Settings = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <SettingsSuggestIcon sx={{ mr: 1.5, color: 'primary.main', fontSize: 28 }} />
           <Typography variant="h5" sx={{ fontWeight: '600' }}>
-            Wyświetlanie i Prywatność
+            Inne
           </Typography>
         </Box>
         <Divider sx={{ mb: 3 }} />
 
-        <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+        <Grid container spacing={2} direction="column">
+            <Grid item xs={12}>
                 <FormControlLabel
-                    control={<Switch defaultChecked />}
-                    label="Powiadomienia na pulpicie"
-                    sx={{ display: 'block', mb: 1 }}
-                />
-                <FormControlLabel
-                    control={<Switch defaultChecked />}
+                    control={
+                        <Switch 
+                            checked={soundEnabled}
+                            onChange={handleSoundToggle}
+                            color="primary"
+                        />
+                    }
                     label="Dźwięki powiadomień"
                     sx={{ display: 'block', mb: 1 }}
                 />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12}>
                 <FormControlLabel
-                    control={<Switch />}
+                    control={
+                        <Switch 
+                            checked={onlineStatusVisible}
+                            onChange={handleVisibilityToggle}
+                        />
+                    }
                     label="Status online widoczny dla innych"
-                    sx={{ display: 'block', mb: 1 }}
-                />
-                <FormControlLabel
-                    control={<Switch defaultChecked />}
-                    label="Kompaktowy widok tabel"
                     sx={{ display: 'block', mb: 1 }}
                 />
             </Grid>

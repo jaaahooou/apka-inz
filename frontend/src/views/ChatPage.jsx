@@ -1,5 +1,5 @@
 // src/views/ChatPage.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, useTheme } from '@mui/material';
 import API from '../api/axiosConfig';
 import useUsers from '../hooks/useUsers';
@@ -12,8 +12,12 @@ import ChatEmpty from '../components/chatPage/ChatEmpty';
 
 const ChatView = () => {
   const theme = useTheme();
-  const { data: users, loading: usersLoading, error: usersError } = useUsers();
+  // Pobieramy użytkowników z API (to jest baza danych)
+  const { data: apiUsers, loading: usersLoading, error: usersError } = useUsers();
 
+  // Mapa statusów online aktualizowana przez WebSocket { userId: boolean }
+  const [onlineStatuses, setOnlineStatuses] = useState({});
+  
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [searchText, setSearchText] = useState('');
@@ -23,20 +27,59 @@ const ChatView = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserUsername, setCurrentUserUsername] = useState('');
 
-  // Logika WebSocket: Sortowanie ID, aby pokój "1_2" był taki sam dla obu stron
+  // --- 1. OBSŁUGA STATUSÓW ONLINE (WebSocket) ---
+  const handlePresenceMessage = useCallback((data) => {
+    if (data.type === 'presence_update') {
+      setOnlineStatuses(prev => ({
+        ...prev,
+        // WAŻNE: Konwersja na Number, bo WS może przysłać string "5", a API ma liczbę 5
+        [Number(data.user_id)]: data.status === 'online'
+      }));
+    }
+  }, []);
+
+  useWebSocket('ws://127.0.0.1:8000/ws/notifications/', handlePresenceMessage);
+
+  // --- 2. LISTA UŻYTKOWNIKÓW (COMPUTED STATE) ---
+  // Łączymy dane z API (bazowe) ze statusem z WebSocketa (live)
+  // Używamy useMemo, aby lista była zawsze świeża i przeliczana automatycznie
+  const users = useMemo(() => {
+    if (!apiUsers) return [];
+    
+    return apiUsers.map(u => {
+        // Sprawdzamy status w mapie (WS). Jeśli brak, bierzemy z API (Baza). Jeśli brak, false.
+        const wsStatus = onlineStatuses[u.id];
+        const isOnline = wsStatus !== undefined ? wsStatus : (u.is_online || false);
+        
+        return {
+            ...u,
+            is_online: isOnline
+        };
+    });
+  }, [apiUsers, onlineStatuses]);
+
+  // Synchronizacja statusu wybranego użytkownika
+  // Jeśli status usera na liście się zmienił, aktualizujemy też obiekt selectedUser
+  useEffect(() => {
+    if (selectedUser) {
+      const updatedUser = users.find(u => u.id === selectedUser.id);
+      if (updatedUser && updatedUser.is_online !== selectedUser.is_online) {
+        setSelectedUser(updatedUser);
+      }
+    }
+  }, [users, selectedUser]);
+
+
+  // --- 3. OBSŁUGA CZATU ---
   const roomName = currentUserId && selectedUser
     ? [currentUserId, selectedUser.id].sort((a, b) => a - b).join('_')
     : null;
     
-  // URL WebSocket - BEZ TOKENA (token dodaje hook useWebSocket)
   const wsUrl = roomName ? `ws://localhost:8000/ws/chat/${roomName}/` : null;
 
-  // Obsługa wiadomości przychodzących
-  // Używamy useCallback, aby funkcja była stabilna i nie powodowała restartów WebSocket
   const handleIncomingMessage = useCallback((data) => {
     if (data.type === 'chat_message' && data.message) {
       setMessages((prevMessages) => {
-        // 1. Potwierdzenie wysłania (podmiana temp_id)
         if (data.temp_id) {
           const exists = prevMessages.some(msg => msg.id === data.temp_id);
           if (exists) {
@@ -45,22 +88,17 @@ const ChatView = () => {
             );
           }
         }
-
-        // 2. Deduplikacja (sprawdź po ID)
         if (prevMessages.some(msg => msg.id === data.message.id)) {
           return prevMessages;
         }
-
-        // 3. Nowa wiadomość
         return [...prevMessages, data.message];
       });
     }
   }, []);
 
-  // Inicjalizacja WebSocket
   const { send } = useWebSocket(wsUrl, handleIncomingMessage);
 
-  // Pobieranie danych zalogowanego użytkownika
+  // Pobranie current user
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -74,7 +112,7 @@ const ChatView = () => {
     fetchCurrentUser();
   }, []);
 
-  // Pobieranie historii po wybraniu usera
+  // Pobranie historii wiadomości
   useEffect(() => {
     if (selectedUser) {
       const fetchMessages = async (userId) => {
@@ -92,7 +130,7 @@ const ChatView = () => {
     }
   }, [selectedUser]);
 
-  // Funkcja wysyłania
+  // Wysyłanie wiadomości
   const sendMessage = async (content, attachments = []) => {
     if (!selectedUser) return;
     if (!content.trim() && attachments.length === 0) return;
@@ -100,11 +138,9 @@ const ChatView = () => {
     setSendingMessage(true);
 
     try {
-      // SCENARIUSZ 1: Tekst -> WebSocket
       if (attachments.length === 0 && content.trim()) {
         const tempId = `temp-${Date.now()}`;
         
-        // Optymistyczna aktualizacja UI
         const optimisticMessage = {
           id: tempId,
           sender: currentUserId,
@@ -119,7 +155,6 @@ const ChatView = () => {
         };
         setMessages((prev) => [...prev, optimisticMessage]);
 
-        // Bezpieczne wywołanie send
         if (send && typeof send === 'function') {
             send({
               type: 'chat_message',
@@ -132,14 +167,10 @@ const ChatView = () => {
             setError("Brak połączenia. Odśwież stronę.");
         }
       }
-      
-      // SCENARIUSZ 2: Załączniki -> API
       else if (attachments.length > 0) {
           for (const file of attachments) {
-            // Generujemy tempId dla każdej wiadomości
             const tempId = `temp-file-${Date.now()}-${Math.random()}`;
 
-            // 1. Optymistyczna aktualizacja UI dla pliku
             const optimisticFileMessage = {
               id: tempId,
               sender: currentUserId,
@@ -148,7 +179,7 @@ const ChatView = () => {
               recipient: selectedUser.id,
               recipient_username: selectedUser.username,
               content: content || 'Przesłano plik',
-              attachment: file, // Obiekt File do podglądu
+              attachment: file, 
               created_at: new Date().toISOString(),
               is_read: false,
               is_temp: true 
@@ -165,18 +196,12 @@ const ChatView = () => {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             
-            // 2. Aktualizacja stanu po sukcesie API (z obsługą deduplikacji WebSocket)
             setMessages((prev) => {
-              // Sprawdzamy, czy prawdziwa wiadomość (z response.data.id) już dotarła przez WebSocket
-              // w czasie gdy czekaliśmy na odpowiedź z API.
               const realMessageAlreadyExists = prev.some(msg => msg.id === response.data.id);
 
               if (realMessageAlreadyExists) {
-                // Jeśli tak, WebSocket był szybszy. Mamy już prawdziwą wiadomość na liście.
-                // Musimy tylko usunąć naszą "tymczasową" (optymistyczną) wersję, aby nie mieć duplikatu.
                 return prev.filter(msg => msg.id !== tempId);
               } else {
-                // Jeśli nie, podmieniamy naszą tymczasową wiadomość na tę zwróconą przez serwer.
                 return prev.map(msg => 
                   msg.id === tempId ? response.data : msg
                 );
@@ -188,7 +213,6 @@ const ChatView = () => {
     } catch (err) {
       console.error('Błąd wysyłania:', err);
       setError('Nie udało się wysłać wiadomości');
-      // Opcjonalnie: można tu usunąć optymistyczną wiadomość
     } finally {
       setSendingMessage(false);
     }

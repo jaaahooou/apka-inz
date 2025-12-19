@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -25,12 +25,13 @@ import {
   Description as DescriptionIcon,
   Gavel as GavelIcon,
   Info as InfoIcon,
-  Delete as DeleteIcon // Ikona usuwania
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
 import useNotifications from '../hooks/useNotifications';
 import useAuth from '../hooks/useAuth';
+import API from '../api/axiosConfig'; // Dodane do pobrania statusu
 
 // Helper do ikony powiadomienia
 const getNotificationIcon = (type) => {
@@ -47,7 +48,6 @@ const Header = () => {
   const { currentTheme } = useContext(ThemeContext);
   
   const { user: authUser } = useAuth();
-  // Destrukturyzacja deleteNotification
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   // Ograniczenie do 5 ostatnich powiadomień
@@ -55,10 +55,44 @@ const Header = () => {
 
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
+  
+  // Stan widoczności użytkownika
+  const [isVisible, setIsVisible] = useState(true);
 
   const username = authUser?.username || localStorage.getItem('username') || 'Użytkownik';
   const userId = authUser?.user_id;
   const userInitial = username.charAt(0).toUpperCase();
+
+  // Pobierz status widoczności przy montowaniu
+  useEffect(() => {
+      const storedVisibility = localStorage.getItem('is_visible');
+      if (storedVisibility !== null) {
+          setIsVisible(storedVisibility === 'true');
+      } else if (userId) {
+          // Fallback do API jeśli brak w localStorage
+          API.get(`/court/users/${userId}/`)
+             .then(res => {
+                 setIsVisible(res.data.is_visible);
+                 localStorage.setItem('is_visible', res.data.is_visible);
+             })
+             .catch(err => console.error("Header visibility fetch error", err));
+      }
+      
+      // Listener na zmiany w localStorage (gdy zmienimy w Settings)
+      const handleStorageChange = () => {
+          const updated = localStorage.getItem('is_visible');
+          if (updated !== null) setIsVisible(updated === 'true');
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      // Custom event dla zmian w obrębie tej samej karty
+      window.addEventListener('local-storage-update', handleStorageChange);
+      
+      return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          window.removeEventListener('local-storage-update', handleStorageChange);
+      };
+  }, [userId]);
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -79,17 +113,13 @@ const Header = () => {
   };
 
   const handleDeleteClick = (e, id) => {
-      e.stopPropagation(); // Zapobiega otwarciu powiadomienia przy usuwaniu
+      e.stopPropagation(); 
       deleteNotification(id);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('username');
-    sessionStorage.removeItem('access_token');
-    sessionStorage.removeItem('refresh_token');
-    sessionStorage.removeItem('username');
+    localStorage.clear();
+    sessionStorage.clear();
     navigate('/login');
     handleMenuClose();
   };
@@ -127,7 +157,9 @@ const Header = () => {
               <Typography sx={{ color: theme.palette.text.primary, fontSize: '0.95rem', fontWeight: '500' }}>
                   {username}
               </Typography>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Zalogowany</Typography>
+              <Typography variant="caption" sx={{ color: isVisible ? theme.palette.success.main : theme.palette.text.secondary }}>
+                  {isVisible ? 'Zalogowany' : 'Niewidoczny'}
+              </Typography>
             </Box>
             <Avatar sx={{ width: 38, height: 38, background: theme.palette.primary.main }}>{userInitial}</Avatar>
           </Box>
@@ -162,7 +194,7 @@ const Header = () => {
                             display: 'flex',
                             alignItems: 'flex-start',
                             justifyContent: 'space-between',
-                            pr: 1 // Padding right for delete button
+                            pr: 1 
                         }}
                     >
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', flexGrow: 1 }}>
