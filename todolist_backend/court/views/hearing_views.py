@@ -4,20 +4,39 @@ from rest_framework import status
 from court.models import Hearing
 from court.serializers import HearingSerializer
 
-
 @api_view(['GET', 'POST'])
 def hearing_list_create(request):
     """
-    GET - lista wszystkich rozpraw
+    GET - lista wszystkich rozpraw (opcjonalnie filtrowana po judge_id)
     POST - tworzenie nowej rozprawy
     """
     if request.method == 'GET':
         hearings = Hearing.objects.all().order_by('-date_time')
+        
+        # Opcjonalne filtrowanie po ID sędziego (jeśli podano w URL ?judge_id=1)
+        judge_id = request.query_params.get('judge_id')
+        if judge_id:
+            hearings = hearings.filter(judge_id=judge_id)
+
         serializer = HearingSerializer(hearings, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     elif request.method == 'POST':
-        serializer = HearingSerializer(data=request.data)
+        # Przy tworzeniu rozprawy, jeśli judge nie jest podany, możemy (opcjonalnie) 
+        # przypisać sędziego z powiązanej sprawy
+        data = request.data.copy()
+        
+        # Logika biznesowa: Przypisz sędziego ze sprawy, jeśli nie wybrano ręcznie
+        if 'case' in data and not data.get('judge'):
+            from court.models import Case
+            try:
+                case_instance = Case.objects.get(pk=data['case'])
+                if case_instance.assigned_judge:
+                    data['judge'] = case_instance.assigned_judge.id
+            except Case.DoesNotExist:
+                pass
+
+        serializer = HearingSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -26,9 +45,6 @@ def hearing_list_create(request):
 
 @api_view(['GET'])
 def hearing_detail(request, pk):
-    """
-    GET - szczegóły rozprawy
-    """
     try:
         hearing = Hearing.objects.get(pk=pk)
     except Hearing.DoesNotExist:
@@ -43,10 +59,6 @@ def hearing_detail(request, pk):
 
 @api_view(['PUT', 'PATCH'])
 def hearing_update(request, pk):
-    """
-    PUT - pełna aktualizacja rozprawy
-    PATCH - częściowa aktualizacja rozprawy
-    """
     try:
         hearing = Hearing.objects.get(pk=pk)
     except Hearing.DoesNotExist:
@@ -67,9 +79,6 @@ def hearing_update(request, pk):
 
 @api_view(['DELETE'])
 def hearing_delete(request, pk):
-    """
-    DELETE - usuwanie rozprawy
-    """
     try:
         hearing = Hearing.objects.get(pk=pk)
     except Hearing.DoesNotExist:

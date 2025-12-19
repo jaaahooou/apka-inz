@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import API from '../api/axiosConfig';
 
 const useHearings = () => {
@@ -6,10 +6,9 @@ const useHearings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchHearings = async () => {
+  const fetchHearings = useCallback(async () => {
     try {
       setLoading(true);
-      // PRZYWRÓCONO: /court/hearings/
       const response = await API.get('/court/hearings/');
       setData(response.data);
       setError(null);
@@ -19,14 +18,26 @@ const useHearings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchHearings();
-  }, []);
+  }, [fetchHearings]);
 
   const refetch = async () => {
     await fetchHearings();
+  };
+
+  // ✅ Nowa funkcja: Tworzenie rozprawy
+  const createHearing = async (hearingData) => {
+    try {
+      const response = await API.post('/court/hearings/', hearingData);
+      setData(prev => [...prev, response.data]);
+      return response.data;
+    } catch (err) {
+      console.error("Błąd tworzenia rozprawy:", err);
+      throw err;
+    }
   };
 
   const updateHearing = (updatedHearing) => {
@@ -37,7 +48,7 @@ const useHearings = () => {
     );
   };
 
-  return { data, loading, error, refetch, updateHearing };
+  return { data, loading, error, refetch, createHearing, updateHearing };
 };
 
 export default useHearings;
