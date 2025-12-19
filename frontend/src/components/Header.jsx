@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -15,7 +15,7 @@ import {
   ListItemButton,
   ListItemText,
   ListItemIcon,
-  Button // Dodano import Button
+  Button
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
@@ -24,12 +24,14 @@ import {
   Settings as SettingsIcon,
   Description as DescriptionIcon,
   Gavel as GavelIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
 import useNotifications from '../hooks/useNotifications';
 import useAuth from '../hooks/useAuth';
+import API from '../api/axiosConfig'; // Dodane do pobrania statusu
 
 // Helper do ikony powiadomienia
 const getNotificationIcon = (type) => {
@@ -46,17 +48,51 @@ const Header = () => {
   const { currentTheme } = useContext(ThemeContext);
   
   const { user: authUser } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   // Ograniczenie do 5 ostatnich powiadomień
   const displayedNotifications = notifications.slice(0, 5);
 
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
+  
+  // Stan widoczności użytkownika
+  const [isVisible, setIsVisible] = useState(true);
 
   const username = authUser?.username || localStorage.getItem('username') || 'Użytkownik';
   const userId = authUser?.user_id;
   const userInitial = username.charAt(0).toUpperCase();
+
+  // Pobierz status widoczności przy montowaniu
+  useEffect(() => {
+      const storedVisibility = localStorage.getItem('is_visible');
+      if (storedVisibility !== null) {
+          setIsVisible(storedVisibility === 'true');
+      } else if (userId) {
+          // Fallback do API jeśli brak w localStorage
+          API.get(`/court/users/${userId}/`)
+             .then(res => {
+                 setIsVisible(res.data.is_visible);
+                 localStorage.setItem('is_visible', res.data.is_visible);
+             })
+             .catch(err => console.error("Header visibility fetch error", err));
+      }
+      
+      // Listener na zmiany w localStorage (gdy zmienimy w Settings)
+      const handleStorageChange = () => {
+          const updated = localStorage.getItem('is_visible');
+          if (updated !== null) setIsVisible(updated === 'true');
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      // Custom event dla zmian w obrębie tej samej karty
+      window.addEventListener('local-storage-update', handleStorageChange);
+      
+      return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          window.removeEventListener('local-storage-update', handleStorageChange);
+      };
+  }, [userId]);
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -71,20 +107,19 @@ const Header = () => {
       if (!notif.is_read) {
           markAsRead(notif.id);
       }
-      // Nawigacja w zależności od typu (opcjonalnie)
       if (notif.type === 'hearing_reminder' || notif.type === 'document_added') {
-           // Można dodać case_id do powiadomienia w backendzie, by tu nawigować
-           // navigate(`/cases/${notif.case_id}`);
+           // Opcjonalna nawigacja
       }
   };
 
+  const handleDeleteClick = (e, id) => {
+      e.stopPropagation(); 
+      deleteNotification(id);
+  };
+
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('username');
-    sessionStorage.removeItem('access_token');
-    sessionStorage.removeItem('refresh_token');
-    sessionStorage.removeItem('username');
+    localStorage.clear();
+    sessionStorage.clear();
     navigate('/login');
     handleMenuClose();
   };
@@ -122,7 +157,9 @@ const Header = () => {
               <Typography sx={{ color: theme.palette.text.primary, fontSize: '0.95rem', fontWeight: '500' }}>
                   {username}
               </Typography>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Zalogowany</Typography>
+              <Typography variant="caption" sx={{ color: isVisible ? theme.palette.success.main : theme.palette.text.secondary }}>
+                  {isVisible ? 'Zalogowany' : 'Niewidoczny'}
+              </Typography>
             </Box>
             <Avatar sx={{ width: 38, height: 38, background: theme.palette.primary.main }}>{userInitial}</Avatar>
           </Box>
@@ -153,35 +190,53 @@ const Header = () => {
                         onClick={() => handleNotificationClick(notif)}
                         sx={{ 
                             backgroundColor: notif.is_read ? 'transparent' : `rgba(${theme.palette.mode === 'light' ? '25, 118, 210' : '224, 224, 224'}, 0.08)`,
-                            borderBottom: `1px solid ${theme.palette.divider}`
+                            borderBottom: `1px solid ${theme.palette.divider}`,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            pr: 1 
                         }}
                     >
-                        <ListItemIcon sx={{ minWidth: '40px' }}>
-                            {getNotificationIcon(notif.type)}
-                        </ListItemIcon>
-                        <ListItemText 
-                            primary={
-                                <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
-                                    {notif.title}
-                                </Typography>
-                            }
-                            secondary={
-                                <React.Fragment>
-                                    <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
-                                        {notif.message}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', flexGrow: 1 }}>
+                            <ListItemIcon sx={{ minWidth: '40px', mt: 0.5 }}>
+                                {getNotificationIcon(notif.type)}
+                            </ListItemIcon>
+                            <ListItemText 
+                                primary={
+                                    <Typography variant="subtitle2" component="span" sx={{ color: theme.palette.text.primary, fontWeight: notif.is_read ? 400 : 600 }}>
+                                        {notif.title}
                                     </Typography>
-                                    <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
-                                        {new Date(notif.sent_at).toLocaleString()}
-                                    </Typography>
-                                </React.Fragment>
-                            }
-                        />
+                                }
+                                secondary={
+                                    <React.Fragment>
+                                        <Typography variant="body2" component="span" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
+                                            {notif.message}
+                                        </Typography>
+                                        <Typography variant="caption" component="span" sx={{ color: theme.palette.text.disabled }}>
+                                            {new Date(notif.sent_at).toLocaleString()}
+                                        </Typography>
+                                    </React.Fragment>
+                                }
+                            />
+                        </Box>
+                        
+                        <IconButton 
+                            size="small" 
+                            onClick={(e) => handleDeleteClick(e, notif.id)}
+                            sx={{ 
+                                color: theme.palette.text.disabled, 
+                                '&:hover': { color: theme.palette.error.main, backgroundColor: 'rgba(211, 47, 47, 0.08)' },
+                                ml: 1,
+                                mt: 0.5
+                            }}
+                        >
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
                     </ListItemButton>
                 ))
             )}
         </List>
 
-        {/* Footer with Mark All Read button */}
         {unreadCount > 0 && (
             <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
                 <Button 

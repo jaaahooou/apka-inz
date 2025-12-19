@@ -151,8 +151,10 @@ const ChatUsersList = ({
                     variant="dot"
                     sx={{
                       '& .MuiBadge-badge': {
-                        backgroundColor: '#44b700',
-                        color: '#44b700',
+                        // Jeśli u.is_online istnieje i jest true = zielony
+                        // Jeśli u.is_online false lub undefined = szary
+                        backgroundColor: u.is_online ? '#44b700' : theme.palette.text.disabled,
+                        color: u.is_online ? '#44b700' : theme.palette.text.disabled,
                         boxShadow: `0 0 0 2px ${theme.palette.background.paper}`,
                       },
                     }}
@@ -191,7 +193,7 @@ const ChatUsersList = ({
                         display: 'block',
                       }}
                     >
-                      {u.email}
+                      {u.is_online ? 'Dostępny' : 'Niedostępny'}
                     </Typography>
                   }
                 />

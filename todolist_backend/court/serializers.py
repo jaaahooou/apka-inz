@@ -30,6 +30,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['role'] = str(user.role) if user.role else ""
         token['username'] = user.username
         token['user_id'] = user.id
+        # USUNIĘTO: token['theme'] = user.theme
         return token
 
 class PasswordResetSerializer(serializers.Serializer):
@@ -62,16 +63,21 @@ class RoleSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    # DODANO: Pole is_online wyliczane dynamicznie z uwzględnieniem is_visible
+    is_online = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = '__all__'
-        # POPRAWKA: created_at -> date_joined
         read_only_fields = ['date_joined'] 
         extra_kwargs = {
             'password': {'write_only': True}
         }
     
+    def get_is_online(self, obj):
+        # Użytkownik jest online tylko jeśli ma połączenie WS ORAZ chce być widoczny
+        return obj.is_online and obj.is_visible
+
     def create(self, validated_data):
         is_active = validated_data.get('is_active', True)
         user = User.objects.create_user(
@@ -85,15 +91,15 @@ class UserSerializer(serializers.ModelSerializer):
         user.phone = validated_data.get('phone', '')
         user.status = validated_data.get('status', '')
         user.is_active = is_active
+        user.is_visible = validated_data.get('is_visible', True)
         user.save()
         return user
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # POPRAWKA: created_at -> date_joined (Django User model używa date_joined)
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 
-                  'role', 'phone', 'status', 'date_joined', 'is_active']
+                  'role', 'phone', 'status', 'date_joined', 'is_active', 'is_visible']
         read_only_fields = ['id', 'username', 'date_joined'] 
 
 # --- 3. SPRAWY I DOKUMENTY ---

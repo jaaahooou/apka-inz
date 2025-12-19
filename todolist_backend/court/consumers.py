@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-# --- CONSUMER CZATU (bez zmian, dla kontekstu) ---
+# --- CONSUMER CZATU (bez zmian) ---
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
@@ -78,7 +78,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
 
 
-# --- NOWY CONSUMER POWIADOMIEŃ ---
+# --- CONSUMER POWIADOMIEŃ I STATUSÓW ---
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
@@ -88,25 +88,86 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
-        # Tworzymy unikalną grupę dla użytkownika
+        # 1. Tworzymy unikalną grupę dla prywatnych powiadomień użytkownika
         self.group_name = f"notifications_{self.user.id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
 
-        await self.channel_layer.group_add(
-            self.group_name,
-            self.channel_name
-        )
+        # 2. Dołączamy do globalnej grupy statusów
+        self.presence_group = "online_users"
+        await self.channel_layer.group_add(self.presence_group, self.channel_name)
+
+        # 3. Zapisz w bazie, że użytkownik jest podłączony (is_online = True)
+        await self.set_user_online(self.user, True)
+
         await self.accept()
 
-    async def disconnect(self, close_code):
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(
-                self.group_name,
-                self.channel_name
+        # 4. Jeśli użytkownik jest widoczny, rozgłoś "jestem online"
+        is_visible = await self.get_user_visibility(self.user)
+        if is_visible:
+            await self.channel_layer.group_send(
+                self.presence_group,
+                {
+                    'type': 'presence_update',
+                    'user_id': self.user.id,
+                    'status': 'online'
+                }
             )
 
-    # Metoda wywoływana przez signals.py
+    async def disconnect(self, close_code):
+        # 1. Zapisz w bazie, że użytkownik rozłączony (is_online = False)
+        await self.set_user_online(self.user, False)
+
+        # 2. Rozgłoś "jestem offline" (chyba że był już ukryty, ale dla uproszczenia wysyłamy)
+        if hasattr(self, 'presence_group'):
+            await self.channel_layer.group_send(
+                self.presence_group,
+                {
+                    'type': 'presence_update',
+                    'user_id': self.user.id,
+                    'status': 'offline'
+                }
+            )
+            await self.channel_layer.group_discard(self.presence_group, self.channel_name)
+
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        message_type = data.get('type')
+
+        # Obsługa ręcznej zmiany widoczności z frontendu
+        if message_type == 'visibility_change':
+            new_status = data.get('status') # 'online' lub 'offline' (ukryty)
+            await self.channel_layer.group_send(
+                self.presence_group,
+                {
+                    'type': 'presence_update',
+                    'user_id': self.user.id,
+                    'status': new_status
+                }
+            )
+
+    # --- OBSŁUGA ZDARZEŃ ---
+
     async def send_notification(self, event):
         await self.send(text_data=json.dumps({
             "type": "notification",
             "data": event["notification"]
         }))
+
+    async def presence_update(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "presence_update",
+            "user_id": event["user_id"],
+            "status": event["status"]
+        }))
+
+    @database_sync_to_async
+    def get_user_visibility(self, user):
+        return user.is_visible
+
+    @database_sync_to_async
+    def set_user_online(self, user, status):
+        # Używamy update, aby uniknąć problemów z race condition i nadpisywaniem całego obiektu
+        User.objects.filter(id=user.id).update(is_online=status)
